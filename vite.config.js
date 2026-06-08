@@ -53,11 +53,17 @@ export default defineConfig({
         chunkSizeWarningLimit: 700,
         rollupOptions: {
             output: {
-                manualChunks: {
-                    react: ['react', 'react-dom', 'react-router-dom'],
-                    charts: ['recharts'],
-                    scanner: ['html5-qrcode'],
-                    supabase: ['@supabase/supabase-js'],
+                manualChunks: function (id) {
+                    if (id.includes('node_modules')) {
+                        if (id.includes('react') || id.includes('react-dom') || id.includes('react-router'))
+                            return 'react';
+                        if (id.includes('recharts'))
+                            return 'charts';
+                        if (id.includes('html5-qrcode'))
+                            return 'scanner';
+                        if (id.includes('@supabase'))
+                            return 'supabase';
+                    }
                 },
             },
         },
