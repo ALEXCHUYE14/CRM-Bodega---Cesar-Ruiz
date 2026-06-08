@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
+import { CajaProvider } from '@/context/CajaContext'
 import { ToastProvider } from '@/components/ui/Toast'
 import { AppShell } from '@/components/layout/AppShell'
 import { Spinner } from '@/components/ui/Button'
@@ -8,6 +9,8 @@ import { Dashboard } from '@/pages/Dashboard'
 import { POS } from '@/pages/POS'
 import { Inventario } from '@/pages/Inventario'
 import { Ventas } from '@/pages/Ventas'
+import { Clientes } from '@/pages/Clientes'
+import { Caja } from '@/pages/Caja'
 import { Proveedores } from '@/pages/Proveedores'
 import { Compras } from '@/pages/Compras'
 import { Mermas } from '@/pages/Mermas'
@@ -90,6 +93,24 @@ function Rutas() {
         }
       />
       <Route
+        path="/caja"
+        element={
+          <Privado>
+            <Caja />
+          </Privado>
+        }
+      />
+      <Route
+        path="/clientes"
+        element={
+          <Privado>
+            <SoloAdmin>
+              <Clientes />
+            </SoloAdmin>
+          </Privado>
+        }
+      />
+      <Route
         path="/proveedores"
         element={
           <Privado>
@@ -129,9 +150,11 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <ToastProvider>
-          <Rutas />
-        </ToastProvider>
+        <CajaProvider>
+          <ToastProvider>
+            <Rutas />
+          </ToastProvider>
+        </CajaProvider>
       </AuthProvider>
     </BrowserRouter>
   )

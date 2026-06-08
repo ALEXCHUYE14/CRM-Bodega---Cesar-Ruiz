@@ -9,11 +9,14 @@ import {
   X,
   Camera,
   Tag,
+  LockOpen,
 } from 'lucide-react'
 import { useProductos } from '@/hooks/useProductos'
 import { useCarrito } from '@/hooks/useCarrito'
+import { useClientes } from '@/hooks/useClientes'
 import { useKeyboardScanner } from '@/hooks/useKeyboardScanner'
 import { useAuth } from '@/context/AuthContext'
+import { useCajaCtx } from '@/context/CajaContext'
 import { supabase } from '@/lib/supabase'
 import { Button, Badge } from '@/components/ui/Button'
 import { Sheet } from '@/components/ui/Sheet'
@@ -26,7 +29,9 @@ import type { ItemCarrito, MetodoPago, Producto, Venta } from '@/types/database'
 
 export function POS() {
   const { productos, categorias, cargando } = useProductos()
-  const { perfil } = useAuth()
+  const { clientes } = useClientes()
+  const { perfil, esAdmin } = useAuth()
+  const { caja, cargando: cajaCargando, abrir: abrirCaja } = useCajaCtx()
   const toast = useToast()
   const carrito = useCarrito()
 
@@ -38,6 +43,12 @@ export function POS() {
   const [procesando, setProcesando] = useState(false)
   const [ventaHecha, setVentaHecha] = useState<Venta | null>(null)
   const [itemsTicket, setItemsTicket] = useState<ItemCarrito[]>([])
+  const [abrirCajaOpen, setAbrirCajaOpen] = useState(false)
+  const [montoInicial, setMontoInicial] = useState('')
+  const [abriendoCaja, setAbriendoCaja] = useState(false)
+
+  // Cajero sin caja abierta debe abrir una antes de vender
+  const necesitaCaja = !esAdmin && !cajaCargando && !caja
 
   // --- Manejo de escaneo (camara o lector fisico) ---
   const onScan = useCallback(
@@ -70,7 +81,21 @@ export function POS() {
     })
   }, [productos, busqueda, catSel])
 
-  async function cobrar(metodo: MetodoPago, pagoRecibido: number) {
+  async function confirmarAbrirCaja() {
+    setAbriendoCaja(true)
+    try {
+      await abrirCaja(parseFloat(montoInicial) || 0)
+      toast.exito('Caja abierta. Ya puedes vender.')
+      setAbrirCajaOpen(false)
+      setMontoInicial('')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al abrir la caja')
+    } finally {
+      setAbriendoCaja(false)
+    }
+  }
+
+  async function cobrar(metodo: MetodoPago, pagoRecibido: number, clienteId?: string) {
     setProcesando(true)
     try {
       const items = carrito.items.map((i) => ({
@@ -83,8 +108,19 @@ export function POS() {
         p_metodo: metodo,
         p_descuento: carrito.descuento,
         p_pago_recibido: pagoRecibido,
+        p_caja_id: caja?.id ?? null,
+        p_cliente_id: clienteId ?? null,
       })
       if (error) throw error
+
+      // Actualizar deuda del cliente si la venta es al fiado
+      if (metodo === 'fiado' && clienteId) {
+        await supabase.rpc('registrar_cargo_fiado', {
+          p_cliente_id: clienteId,
+          p_monto: carrito.totales.total,
+        })
+      }
+
       setItemsTicket(carrito.items)
       setVentaHecha(data as unknown as Venta)
       carrito.limpiar()
@@ -97,6 +133,72 @@ export function POS() {
     } finally {
       setProcesando(false)
     }
+  }
+
+  // Banner de caja cerrada — bloquea ventas para cajero
+  if (necesitaCaja) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="mb-4 grid size-16 place-items-center rounded-2xl bg-amber-100">
+          <LockOpen className="size-8 text-amber-600" />
+        </div>
+        <h2 className="font-display text-xl font-bold text-ink-900">Caja cerrada</h2>
+        <p className="mt-1 max-w-xs text-sm text-ink-400">
+          Debes abrir la caja con el monto inicial antes de registrar ventas.
+        </p>
+        <Button className="mt-6" variant="primary" onClick={() => setAbrirCajaOpen(true)}>
+          <LockOpen className="size-4" /> Abrir caja ahora
+        </Button>
+
+        <Sheet
+          open={abrirCajaOpen}
+          onClose={() => setAbrirCajaOpen(false)}
+          title="Abrir caja"
+          maxWidth="max-w-sm"
+          footer={
+            <Button
+              variant="secondary"
+              size="lg"
+              className="w-full"
+              loading={abriendoCaja}
+              onClick={confirmarAbrirCaja}
+            >
+              <LockOpen className="size-5" /> Confirmar apertura
+            </Button>
+          }
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-ink-500">
+              Ingresa el efectivo con el que inicias el turno (fondo de caja).
+            </p>
+            <label className="block">
+              <span className="label mb-1.5 block">Monto inicial en caja (S/)</span>
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                className="input tabular text-xl"
+                value={montoInicial}
+                onChange={(e) => setMontoInicial(e.target.value)}
+                placeholder="0.00"
+                autoFocus
+              />
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {[0, 50, 100, 150, 200].map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setMontoInicial(String(v))}
+                  className="rounded-lg bg-ink-100 px-3 py-1.5 text-xs font-semibold text-ink-700 hover:bg-ink-200"
+                >
+                  {v === 0 ? 'Sin fondo' : `S/ ${v}`}
+                </button>
+              ))}
+            </div>
+          </div>
+        </Sheet>
+      </div>
+    )
   }
 
   return (
@@ -226,6 +328,7 @@ export function POS() {
         onClose={() => setPagoAbierto(false)}
         total={carrito.totales.total}
         procesando={procesando}
+        clientes={clientes}
         onConfirmar={cobrar}
       />
 

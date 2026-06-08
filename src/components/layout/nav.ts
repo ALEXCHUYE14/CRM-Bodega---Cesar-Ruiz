@@ -6,6 +6,8 @@ import {
   Truck,
   ShoppingBag,
   Trash2,
+  Users,
+  Vault,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -21,6 +23,8 @@ export const NAV: NavItem[] = [
   { to: '/pos', label: 'Vender', icon: ScanLine },
   { to: '/inventario', label: 'Inventario', icon: Package },
   { to: '/ventas', label: 'Ventas', icon: ReceiptText },
+  { to: '/caja', label: 'Caja', icon: Vault },
+  { to: '/clientes', label: 'Clientes', icon: Users, soloAdmin: true },
   { to: '/proveedores', label: 'Proveedores', icon: Truck, soloAdmin: true },
   { to: '/compras', label: 'Compras', icon: ShoppingBag, soloAdmin: true },
   { to: '/mermas', label: 'Mermas', icon: Trash2, soloAdmin: true },

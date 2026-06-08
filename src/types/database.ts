@@ -1,10 +1,11 @@
 // Tipos del dominio del sistema Cesar Ruiz POS
 
 export type Rol = 'administrador' | 'cajero'
-export type MetodoPago = 'efectivo' | 'tarjeta' | 'yape' | 'plin' | 'transferencia'
+export type MetodoPago = 'efectivo' | 'yape' | 'fiado'
 export type TipoMovimiento = 'entrada' | 'salida' | 'ajuste' | 'venta' | 'devolucion'
 export type EstadoCompra = 'pagado' | 'pendiente'
 export type MotivoMerma = 'vencido' | 'danado' | 'consumo_interno' | 'otro'
+export type EstadoCaja = 'abierta' | 'cerrada'
 
 export type Perfil = {
   id: string
@@ -43,6 +44,9 @@ export type Venta = {
   numero: number
   cajero_id: string | null
   cajero_nombre: string | null
+  caja_id: string | null
+  cliente_id: string | null
+  cliente_nombre: string | null
   subtotal: number
   descuento: number
   igv: number
@@ -76,6 +80,40 @@ export type MovimientoInventario = {
   motivo: string | null
   usuario_id: string | null
   creado_en: string
+}
+
+export type ClienteCredito = {
+  id: string
+  nombre: string
+  telefono: string | null
+  direccion: string | null
+  limite_credito: number
+  deuda_actual: number
+  activo: boolean
+  creado_en: string
+}
+
+export type PagoCredito = {
+  id: string
+  cliente_id: string
+  monto: number
+  nota: string | null
+  cajero_id: string | null
+  creado_en: string
+}
+
+export type CajaRegistro = {
+  id: string
+  cajero_id: string | null
+  cajero_nombre: string | null
+  monto_inicial: number
+  total_efectivo: number
+  total_yape: number
+  total_fiado: number
+  monto_real: number | null
+  estado: EstadoCaja
+  abierta_en: string
+  cerrada_en: string | null
 }
 
 export type Proveedor = {
@@ -142,6 +180,9 @@ export interface Database {
       ventas: Tabla<Venta>
       detalle_ventas: Tabla<DetalleVenta>
       movimientos_inventario: Tabla<MovimientoInventario>
+      clientes_credito: Tabla<ClienteCredito>
+      pagos_credito: Tabla<PagoCredito>
+      cajas: Tabla<CajaRegistro>
       proveedores: Tabla<Proveedor>
       compras: Tabla<Compra>
       detalle_compras: Tabla<DetalleCompra>
@@ -155,20 +196,18 @@ export interface Database {
           p_metodo: MetodoPago
           p_descuento: number
           p_pago_recibido: number
+          p_caja_id: string | null
+          p_cliente_id: string | null
         }
         Returns: Venta
       }
-      registrar_compra: {
-        Args: {
-          p_numero: string | null
-          p_proveedor_id: string | null
-          p_proveedor_nombre: string | null
-          p_fecha_compra: string
-          p_estado: EstadoCompra
-          p_notas: string | null
-          p_items: unknown
-        }
-        Returns: Compra
+      registrar_cargo_fiado: {
+        Args: { p_cliente_id: string; p_monto: number }
+        Returns: ClienteCredito
+      }
+      registrar_abono_cliente: {
+        Args: { p_cliente_id: string; p_monto: number; p_nota: string | null }
+        Returns: PagoCredito
       }
       ajustar_stock: {
         Args: {
@@ -188,6 +227,7 @@ export interface Database {
       tipo_movimiento: TipoMovimiento
       estado_compra: EstadoCompra
       motivo_merma: MotivoMerma
+      estado_caja: EstadoCaja
     }
     CompositeTypes: Record<string, never>
   }
