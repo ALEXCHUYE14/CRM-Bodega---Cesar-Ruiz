@@ -55,8 +55,6 @@ export function cx(...parts: Array<string | false | null | undefined>): string {
 
 export const ETIQUETA_PAGO: Record<string, string> = {
   efectivo: 'Efectivo',
-  tarjeta: 'Tarjeta',
   yape: 'Yape',
-  plin: 'Plin',
-  transferencia: 'Transferencia',
+  fiado: 'Fiado',
 }
