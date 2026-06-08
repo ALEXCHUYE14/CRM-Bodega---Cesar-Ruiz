@@ -117,17 +117,32 @@ export function Inventario() {
               return (
                 <li
                   key={p.id}
-                  className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-3 lg:grid-cols-[1fr_auto_auto_auto_auto] lg:gap-4"
+                  className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-2.5 lg:grid-cols-[1fr_auto_auto_auto_auto] lg:gap-4"
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    <span
-                      className="size-2.5 shrink-0 rounded-full"
-                      style={{ background: p.categorias?.color ?? '#56564f' }}
-                    />
+                    {/* Thumbnail */}
+                    <div className="size-9 shrink-0 overflow-hidden rounded-lg border border-ink-100 bg-ink-50">
+                      {p.image_url ? (
+                        <img
+                          src={p.image_url}
+                          alt={p.nombre}
+                          loading="lazy"
+                          decoding="async"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="grid h-full w-full place-items-center">
+                          <span
+                            className="size-2.5 rounded-full"
+                            style={{ background: p.categorias?.color ?? '#d4d4d0' }}
+                          />
+                        </div>
+                      )}
+                    </div>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-ink-800">{p.nombre}</p>
                       <p className="tabular text-xs text-ink-400">
-                        {p.sku} · {p.categorias?.nombre ?? 'Sin categoria'}
+                        {p.sku} · {p.categorias?.nombre ?? 'Sin categoría'}
                       </p>
                     </div>
                   </div>

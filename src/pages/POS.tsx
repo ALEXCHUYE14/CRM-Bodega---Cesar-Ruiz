@@ -374,30 +374,55 @@ function ProductoCard({ producto, onClick }: { producto: Producto; onClick: () =
       onClick={onClick}
       disabled={agotado}
       className={cx(
-        'group flex flex-col rounded-xl border border-ink-100 bg-white p-3 text-left transition focusable',
+        'group flex flex-col overflow-hidden rounded-xl border border-ink-100 bg-white text-left transition focusable',
         'hover:border-ink-300 hover:shadow-card active:scale-[0.98]',
-        agotado && 'opacity-50',
+        agotado && 'cursor-not-allowed opacity-50',
       )}
     >
-      <div className="mb-2 flex items-start justify-between">
-        <span
-          className="size-2.5 rounded-full"
-          style={{ background: producto.categorias?.color ?? '#56564f' }}
-        />
-        {agotado ? (
-          <Badge tone="danger">Agotado</Badge>
-        ) : bajo ? (
-          <Badge tone="warning">Quedan {producto.stock_actual}</Badge>
+      {/* Imagen / placeholder */}
+      <div className="relative aspect-square w-full overflow-hidden bg-ink-50">
+        {producto.image_url ? (
+          <img
+            src={producto.image_url}
+            alt={producto.nombre}
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-cover transition group-hover:scale-[1.03]"
+          />
         ) : (
-          <span className="text-[0.7rem] font-medium text-ink-300">{producto.stock_actual} u.</span>
+          <div className="grid h-full w-full place-items-center">
+            <span
+              className="size-5 rounded-full opacity-60"
+              style={{ background: producto.categorias?.color ?? '#d4d4d0' }}
+            />
+          </div>
         )}
+        {/* Badge de stock superpuesto */}
+        <div className="absolute bottom-1.5 right-1.5">
+          {agotado ? (
+            <Badge tone="danger">Agotado</Badge>
+          ) : bajo ? (
+            <Badge tone="warning">{producto.stock_actual} u.</Badge>
+          ) : null}
+        </div>
       </div>
-      <p className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-snug text-ink-800">
-        {producto.nombre}
-      </p>
-      <p className="tabular mt-1 font-display text-lg font-bold text-ink-900">
-        {money(producto.precio_venta)}
-      </p>
+
+      {/* Info */}
+      <div className="p-2.5">
+        <p className="line-clamp-2 text-xs font-semibold leading-snug text-ink-800">
+          {producto.nombre}
+        </p>
+        <div className="mt-1 flex items-center justify-between gap-1">
+          <p className="tabular font-display text-base font-bold text-ink-900">
+            {money(producto.precio_venta)}
+          </p>
+          {!agotado && !bajo && (
+            <span className="text-[0.65rem] font-medium text-ink-300">
+              {producto.stock_actual} u.
+            </span>
+          )}
+        </div>
+      </div>
     </button>
   )
 }
@@ -530,7 +555,13 @@ function GridSkeleton() {
   return (
     <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">
       {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="h-[120px] animate-pulse rounded-xl border border-ink-100 bg-ink-100/60" />
+        <div key={i} className="animate-pulse overflow-hidden rounded-xl border border-ink-100 bg-white">
+          <div className="aspect-square w-full bg-ink-100/70" />
+          <div className="p-2.5 space-y-1.5">
+            <div className="h-3 w-3/4 rounded bg-ink-100" />
+            <div className="h-4 w-1/2 rounded bg-ink-100" />
+          </div>
+        </div>
       ))}
     </div>
   )
