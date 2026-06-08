@@ -31,7 +31,7 @@ export function POS() {
   const { productos, categorias, cargando } = useProductos()
   const { clientes } = useClientes()
   const { perfil, esAdmin } = useAuth()
-  const { caja, cargando: cajaCargando, abrir: abrirCaja } = useCajaCtx()
+  const { caja, cargando: cajaCargando, abrir: abrirCaja, sumarVenta } = useCajaCtx()
   const toast = useToast()
   const carrito = useCarrito()
 
@@ -113,6 +113,11 @@ export function POS() {
       })
       if (error) throw error
 
+      // Actualizar totales de la caja
+      if (caja?.id) {
+        await sumarVenta(caja.id, metodo, carrito.totales.total)
+      }
+
       // Actualizar deuda del cliente si la venta es al fiado
       if (metodo === 'fiado' && clienteId) {
         await supabase.rpc('registrar_cargo_fiado', {
@@ -128,7 +133,12 @@ export function POS() {
       setCarritoMovil(false)
       toast.exito('Venta registrada correctamente')
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'No se pudo registrar la venta'
+      const msg =
+        e instanceof Error
+          ? e.message
+          : typeof e === 'object' && e !== null && 'message' in e
+          ? String((e as { message: unknown }).message)
+          : 'No se pudo registrar la venta'
       toast.error(msg)
     } finally {
       setProcesando(false)
