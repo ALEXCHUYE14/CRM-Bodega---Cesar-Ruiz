@@ -8,6 +8,9 @@ import { Dashboard } from '@/pages/Dashboard'
 import { POS } from '@/pages/POS'
 import { Inventario } from '@/pages/Inventario'
 import { Ventas } from '@/pages/Ventas'
+import { Proveedores } from '@/pages/Proveedores'
+import { Compras } from '@/pages/Compras'
+import { Mermas } from '@/pages/Mermas'
 import type { ReactNode } from 'react'
 
 function Cargando() {
@@ -83,6 +86,36 @@ function Rutas() {
         element={
           <Privado>
             <Ventas />
+          </Privado>
+        }
+      />
+      <Route
+        path="/proveedores"
+        element={
+          <Privado>
+            <SoloAdmin>
+              <Proveedores />
+            </SoloAdmin>
+          </Privado>
+        }
+      />
+      <Route
+        path="/compras"
+        element={
+          <Privado>
+            <SoloAdmin>
+              <Compras />
+            </SoloAdmin>
+          </Privado>
+        }
+      />
+      <Route
+        path="/mermas"
+        element={
+          <Privado>
+            <SoloAdmin>
+              <Mermas />
+            </SoloAdmin>
           </Privado>
         }
       />

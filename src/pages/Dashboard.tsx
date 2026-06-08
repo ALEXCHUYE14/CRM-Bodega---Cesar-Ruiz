@@ -18,19 +18,58 @@ import {
   AlertTriangle,
   Activity,
   ArrowUpRight,
+  TrendingDown,
+  CalendarClock,
 } from 'lucide-react'
 import { useVentasRealtime } from '@/hooks/useVentasRealtime'
 import { useProductos } from '@/hooks/useProductos'
+import { useMermas } from '@/hooks/useMermas'
 import { supabase } from '@/lib/supabase'
 import { Card, Badge } from '@/components/ui/Button'
 import { money, numero, horaCorta, cx, ETIQUETA_PAGO } from '@/utils/format'
-import type { DetalleVenta } from '@/types/database'
+import type { DetalleVenta, Producto } from '@/types/database'
+
+function inicioMes(): Date {
+  const d = new Date()
+  d.setDate(1)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function finHoy(): Date {
+  const d = new Date()
+  d.setHours(23, 59, 59, 999)
+  return d
+}
+
+function diasHasta(fecha: string): number {
+  const hoy = new Date()
+  hoy.setHours(0, 0, 0, 0)
+  const vence = new Date(fecha + 'T00:00:00')
+  return Math.round((vence.getTime() - hoy.getTime()) / 86400000)
+}
 
 export function Dashboard() {
   const { ventas, cargando } = useVentasRealtime()
   const { productos } = useProductos()
+  const { costoTotal: costMermasMes } = useMermas(inicioMes(), finHoy())
   const [topProductos, setTopProductos] = useState<{ nombre: string; cantidad: number }[]>([])
   const [pulso, setPulso] = useState(false)
+
+  // Productos proximos a vencer (dentro de 30 dias, con fecha_vencimiento definida)
+  const proximosVencer = useMemo(() => {
+    return productos
+      .filter((p) => {
+        if (!p.fecha_vencimiento || !p.activo) return false
+        const dias = diasHasta(p.fecha_vencimiento)
+        return dias >= 0 && dias <= 30
+      })
+      .sort((a, b) => {
+        const da = diasHasta(a.fecha_vencimiento!)
+        const db = diasHasta(b.fecha_vencimiento!)
+        return da - db
+      })
+  }, [productos])
 
   // Pulso visual cuando entra una venta nueva
   useEffect(() => {
@@ -141,6 +180,24 @@ export function Dashboard() {
         <Kpi icon={Wallet} label="En efectivo" valor={money(kpis.efectivo)} />
       </div>
 
+      {/* KPI mermas del mes */}
+      {costMermasMes > 0 && (
+        <div className="flex items-center gap-4 rounded-2xl border border-red-100 bg-red-50 px-5 py-4">
+          <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-red-100">
+            <TrendingDown className="size-5 text-red-600" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-red-800">Pérdida por mermas este mes</p>
+            <p className="text-xs text-red-500">
+              Descuenta directamente de la utilidad neta del período
+            </p>
+          </div>
+          <p className="tabular font-display text-xl font-bold text-red-700">
+            {money(costMermasMes)}
+          </p>
+        </div>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Ventas por hora */}
         <Card className="p-4 lg:col-span-2">
@@ -210,6 +267,58 @@ export function Dashboard() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
+        {/* Alertas de vencimiento */}
+        {proximosVencer.length > 0 && (
+          <Card className="p-4 lg:col-span-2">
+            <div className="mb-3 flex items-center gap-2">
+              <CalendarClock className="size-5 text-amber-500" />
+              <h3 className="font-display font-bold text-ink-900">Próximos a vencer</h3>
+              <Badge tone="warning">{proximosVencer.length}</Badge>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {proximosVencer.map((p) => {
+                const dias = diasHasta(p.fecha_vencimiento!)
+                const urgente = dias <= 7
+                const pronto = dias <= 15
+                return (
+                  <div
+                    key={p.id}
+                    className={cx(
+                      'flex items-center justify-between rounded-xl border px-3.5 py-2.5',
+                      urgente
+                        ? 'border-red-200 bg-red-50'
+                        : pronto
+                        ? 'border-amber-200 bg-amber-50'
+                        : 'border-ink-200 bg-ink-50',
+                    )}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-ink-900">{p.nombre}</p>
+                      <p className="text-xs text-ink-400">{p.stock_actual} u. en stock</p>
+                    </div>
+                    <div className="ml-3 shrink-0 text-right">
+                      <p
+                        className={cx(
+                          'font-display text-sm font-bold',
+                          urgente ? 'text-red-700' : pronto ? 'text-amber-700' : 'text-ink-600',
+                        )}
+                      >
+                        {dias === 0 ? 'Hoy' : dias === 1 ? '1 día' : `${dias} días`}
+                      </p>
+                      <p className="text-[0.65rem] text-ink-400">
+                        {new Date(p.fecha_vencimiento! + 'T00:00:00').toLocaleDateString('es-PE', {
+                          day: '2-digit',
+                          month: 'short',
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </Card>
+        )}
+
         {/* Top productos */}
         <Card className="p-4">
           <h3 className="mb-3 font-display font-bold text-ink-900">Mas vendidos hoy</h3>

@@ -3,6 +3,8 @@
 export type Rol = 'administrador' | 'cajero'
 export type MetodoPago = 'efectivo' | 'tarjeta' | 'yape' | 'plin' | 'transferencia'
 export type TipoMovimiento = 'entrada' | 'salida' | 'ajuste' | 'venta' | 'devolucion'
+export type EstadoCompra = 'pagado' | 'pendiente'
+export type MotivoMerma = 'vencido' | 'danado' | 'consumo_interno' | 'otro'
 
 export type Perfil = {
   id: string
@@ -30,6 +32,7 @@ export type Producto = {
   stock_minimo: number
   unidad: string
   activo: boolean
+  fecha_vencimiento: string | null
   creado_en: string
   actualizado_en: string
   categorias?: Categoria | null
@@ -75,6 +78,53 @@ export type MovimientoInventario = {
   creado_en: string
 }
 
+export type Proveedor = {
+  id: string
+  nombre: string
+  ruc: string | null
+  telefono: string | null
+  email: string | null
+  direccion: string | null
+  activo: boolean
+  creado_en: string
+}
+
+export type Compra = {
+  id: string
+  numero: string | null
+  proveedor_id: string | null
+  proveedor_nombre: string | null
+  total: number
+  estado: EstadoCompra
+  fecha_compra: string
+  notas: string | null
+  creado_en: string
+  proveedores?: Proveedor | null
+}
+
+export type DetalleCompra = {
+  id: string
+  compra_id: string
+  producto_id: string | null
+  producto_nombre: string
+  cantidad: number
+  precio_unitario: number
+  subtotal: number
+}
+
+export type Merma = {
+  id: string
+  producto_id: string | null
+  producto_nombre: string
+  cantidad: number
+  costo_unitario: number
+  costo_total: number
+  motivo: MotivoMerma
+  descripcion: string | null
+  usuario_id: string | null
+  creado_en: string
+}
+
 export type ItemCarrito = {
   producto: Producto
   cantidad: number
@@ -92,6 +142,10 @@ export interface Database {
       ventas: Tabla<Venta>
       detalle_ventas: Tabla<DetalleVenta>
       movimientos_inventario: Tabla<MovimientoInventario>
+      proveedores: Tabla<Proveedor>
+      compras: Tabla<Compra>
+      detalle_compras: Tabla<DetalleCompra>
+      mermas: Tabla<Merma>
     }
     Views: Record<string, never>
     Functions: {
@@ -103,6 +157,18 @@ export interface Database {
           p_pago_recibido: number
         }
         Returns: Venta
+      }
+      registrar_compra: {
+        Args: {
+          p_numero: string | null
+          p_proveedor_id: string | null
+          p_proveedor_nombre: string | null
+          p_fecha_compra: string
+          p_estado: EstadoCompra
+          p_notas: string | null
+          p_items: unknown
+        }
+        Returns: Compra
       }
       ajustar_stock: {
         Args: {
@@ -120,6 +186,8 @@ export interface Database {
       rol_usuario: Rol
       metodo_pago: MetodoPago
       tipo_movimiento: TipoMovimiento
+      estado_compra: EstadoCompra
+      motivo_merma: MotivoMerma
     }
     CompositeTypes: Record<string, never>
   }

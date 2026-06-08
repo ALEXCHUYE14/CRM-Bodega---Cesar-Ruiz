@@ -94,9 +94,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </main>
 
-      {/* ---------- Bottom nav (movil) ---------- */}
+      {/* ---------- Bottom nav (movil) — scroll horizontal si hay muchos items ---------- */}
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-100 bg-white/95 backdrop-blur-lg safe-bottom lg:hidden">
-        <div className="mx-auto grid max-w-md grid-cols-4">
+        <div className="flex overflow-x-auto [&::-webkit-scrollbar]:hidden">
           {items.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
@@ -104,7 +104,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               end={to === '/'}
               className={({ isActive }) =>
                 cx(
-                  'flex flex-col items-center gap-1 py-2.5 text-[0.68rem] font-semibold transition',
+                  'flex min-w-[4.5rem] flex-1 flex-col items-center gap-1 py-2.5 text-[0.65rem] font-semibold transition',
                   isActive ? 'text-accent-600' : 'text-ink-400',
                 )
               }
