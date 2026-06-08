@@ -113,12 +113,11 @@ export function useCaja(cajeroId: string | null) {
         : metodo === 'yape'
         ? 'total_yape'
         : 'total_fiado'
-    // Increment using RPC to avoid race conditions
     await supabase.rpc('incrementar_caja', {
       p_caja_id: cajaId,
-      p_campo: campo,
+      p_metodo: metodo,
       p_monto: monto,
-    })
+    } as never)
     // Update local state optimistically
     setCaja((prev) =>
       prev && prev.id === cajaId

@@ -1,8 +1,6 @@
 import {
   createContext,
   useContext,
-  useEffect,
-  useState,
   type ReactNode,
 } from 'react'
 import { useCaja, type ResumenCierre } from '@/hooks/useCaja'

@@ -25,10 +25,8 @@ import type { DetalleVenta, MetodoPago, Perfil, Venta } from '@/types/database'
 
 const TONO_PAGO: Record<MetodoPago, 'neutral' | 'success' | 'info' | 'warning'> = {
   efectivo: 'success',
-  tarjeta: 'info',
-  yape: 'warning',
-  plin: 'info',
-  transferencia: 'neutral',
+  yape: 'info',
+  fiado: 'warning',
 }
 
 export function Ventas() {

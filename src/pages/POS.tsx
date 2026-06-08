@@ -332,12 +332,14 @@ export function POS() {
         onConfirmar={cobrar}
       />
 
-      <Receipt
-        open={!!ventaHecha}
-        onClose={() => setVentaHecha(null)}
-        venta={ventaHecha}
-        items={itemsTicket}
-      />
+      {ventaHecha && (
+        <Receipt
+          open
+          onClose={() => setVentaHecha(null)}
+          venta={ventaHecha}
+          items={itemsTicket}
+        />
+      )}
     </div>
   )
 }

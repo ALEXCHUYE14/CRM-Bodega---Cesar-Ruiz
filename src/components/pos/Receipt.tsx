@@ -13,13 +13,11 @@ const ETIQUETA: Record<string, string> = {
 interface Props {
   open: boolean
   onClose: () => void
-  venta: Venta | null
+  venta: Venta
   items: ItemCarrito[]
 }
 
 export function Receipt({ open, onClose, venta, items }: Props) {
-  if (!venta) return null
-
   function imprimir() {
     const lineas = items
       .map((i) => {

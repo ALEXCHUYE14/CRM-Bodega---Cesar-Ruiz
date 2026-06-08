@@ -219,6 +219,10 @@ export interface Database {
         }
         Returns: Producto
       }
+      incrementar_caja: {
+        Args: { p_caja_id: string; p_metodo: string; p_monto: number }
+        Returns: void
+      }
       anular_venta: { Args: { p_venta_id: string }; Returns: Venta }
       es_admin: { Args: Record<string, never>; Returns: boolean }
     }

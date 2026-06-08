@@ -5,7 +5,7 @@ import { useProductos } from '@/hooks/useProductos'
 import { Button, Card, Badge } from '@/components/ui/Button'
 import { Sheet } from '@/components/ui/Sheet'
 import { useToast } from '@/components/ui/Toast'
-import { money, fechaHora, ymd, cx } from '@/utils/format'
+import { money, fechaHora, cx } from '@/utils/format'
 import type { MotivoMerma } from '@/types/database'
 
 const MOTIVOS: MotivoMerma[] = ['vencido', 'danado', 'consumo_interno', 'otro']

@@ -27,7 +27,7 @@ import { useMermas } from '@/hooks/useMermas'
 import { supabase } from '@/lib/supabase'
 import { Card, Badge } from '@/components/ui/Button'
 import { money, numero, horaCorta, cx, ETIQUETA_PAGO } from '@/utils/format'
-import type { DetalleVenta, Producto } from '@/types/database'
+import type { DetalleVenta } from '@/types/database'
 
 function inicioMes(): Date {
   const d = new Date()
