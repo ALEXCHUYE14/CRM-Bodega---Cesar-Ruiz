@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Plus, Trash2, Search, AlertTriangle, TrendingDown } from 'lucide-react'
 import { useMermas, ETIQUETA_MOTIVO } from '@/hooks/useMermas'
 import { useProductos } from '@/hooks/useProductos'
@@ -31,7 +31,11 @@ function finHoy(): Date {
 }
 
 export function Mermas() {
-  const { mermas, cargando, registrar, costoTotal } = useMermas(inicioMes(), finHoy())
+  // useRef ensures these Date objects are created only once — avoids infinite re-render
+  // that would occur if inicioMes()/finHoy() were called inline (new object each render).
+  const desdeRef = useRef(inicioMes())
+  const hastaRef = useRef(finHoy())
+  const { mermas, cargando, registrar, costoTotal } = useMermas(desdeRef.current, hastaRef.current)
   const { productos } = useProductos()
   const toast = useToast()
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AreaChart,
   Area,
@@ -52,7 +52,9 @@ function diasHasta(fecha: string): number {
 export function Dashboard() {
   const { ventas, cargando } = useVentasRealtime()
   const { productos } = useProductos()
-  const { costoTotal: costMermasMes } = useMermas(inicioMes(), finHoy())
+  const desdeRef = useRef(inicioMes())
+  const hastaRef = useRef(finHoy())
+  const { costoTotal: costMermasMes } = useMermas(desdeRef.current, hastaRef.current)
   const [topProductos, setTopProductos] = useState<{ nombre: string; cantidad: number }[]>([])
   const [pulso, setPulso] = useState(false)
 

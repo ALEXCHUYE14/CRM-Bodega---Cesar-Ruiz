@@ -6,17 +6,22 @@ export function useMermas(desde: Date, hasta: Date) {
   const [mermas, setMermas] = useState<Merma[]>([])
   const [cargando, setCargando] = useState(true)
 
+  // Use getTime() (primitive) so Date objects are compared by value, not reference.
+  // Without this, inline new Date() calls in the parent cause infinite re-renders.
+  const desdeMs = desde.getTime()
+  const hastaMs = hasta.getTime()
+
   const cargar = useCallback(async () => {
     setCargando(true)
     const { data } = await supabase
       .from('mermas')
       .select('*')
-      .gte('creado_en', desde.toISOString())
-      .lte('creado_en', hasta.toISOString())
+      .gte('creado_en', new Date(desdeMs).toISOString())
+      .lte('creado_en', new Date(hastaMs).toISOString())
       .order('creado_en', { ascending: false })
     setMermas(data ?? [])
     setCargando(false)
-  }, [desde, hasta])
+  }, [desdeMs, hastaMs])
 
   useEffect(() => {
     cargar()
