@@ -435,25 +435,22 @@ function Kpi({
   return (
     <div
       className={cx(
-        'rounded-2xl border p-4 transition',
-        destacado ? 'border-ink-900 bg-ink-900 text-white' : 'card',
-        destacado && pulso && 'ring-2 ring-accent-400',
+        'card rounded-2xl border p-4 transition',
+        destacado && pulso && 'ring-2 ring-accent-400 ring-offset-1',
       )}
     >
       <div className="mb-3 flex items-center justify-between">
         <span
           className={cx(
             'grid size-8 place-items-center rounded-lg',
-            destacado ? 'bg-white/10' : 'bg-ink-100',
+            destacado ? 'bg-accent-100' : 'bg-ink-100',
           )}
         >
-          <Icon className={cx('size-[18px]', destacado ? 'text-accent-400' : 'text-ink-500')} />
+          <Icon className={cx('size-[18px]', destacado ? 'text-accent-600' : 'text-ink-500')} />
         </span>
       </div>
-      <p className={cx('tabular font-display text-xl font-bold', destacado ? 'text-white' : 'text-ink-900')}>
-        {valor}
-      </p>
-      <p className={cx('text-xs font-medium', destacado ? 'text-white/50' : 'text-ink-400')}>{label}</p>
+      <p className="tabular font-display text-xl font-bold text-ink-900">{valor}</p>
+      <p className="text-xs font-medium text-ink-400">{label}</p>
     </div>
   )
 }

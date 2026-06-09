@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { beepEscaner } from '@/utils/beep'
 
 /**
  * Captura lectores QR/codigo de barras fisicos que emulan teclado.
@@ -34,6 +35,7 @@ export function useKeyboardScanner(
         buffer.current = ''
         if (codigo.length >= minLength) {
           e.preventDefault()
+          beepEscaner()
           onScan(codigo)
         }
         return
