@@ -25,6 +25,7 @@ import { CameraScanner } from '@/components/pos/CameraScanner'
 import { PaymentModal } from '@/components/pos/PaymentModal'
 import { Receipt } from '@/components/pos/Receipt'
 import { money, cx } from '@/utils/format'
+import { beepExito, beepError } from '@/utils/beep'
 import type { ItemCarrito, MetodoPago, ModalidadVenta, Producto, Venta } from '@/types/database'
 
 export function POS() {
@@ -55,13 +56,16 @@ export function POS() {
     (codigo: string) => {
       const prod = productos.find((p) => p.sku === codigo.trim())
       if (!prod) {
-        toast.error(`Codigo no encontrado: ${codigo}`)
+        beepError()
+        toast.error(`Código no encontrado: ${codigo}`)
         return
       }
       if (prod.stock_actual <= 0) {
+        beepError()
         toast.error(`Sin stock: ${prod.nombre}`)
         return
       }
+      beepExito()
       carrito.agregar(prod, 'unidad')
       toast.exito(`+ ${prod.nombre}`)
     },

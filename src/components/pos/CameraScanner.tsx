@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { CameraOff, Loader2 } from 'lucide-react'
-import { beepEscaner } from '@/utils/beep'
 
 interface Props {
   onScan: (codigo: string) => void
@@ -55,7 +54,6 @@ export function CameraScanner({ onScan, activo }: Props) {
           )
             return
           ultimoScan.current = { codigo: texto, t: ahora }
-          beepEscaner()
           if ('vibrate' in navigator) navigator.vibrate(40)
           onScan(texto)
         },

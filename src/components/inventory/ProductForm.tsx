@@ -7,6 +7,7 @@ import { CameraScanner } from '@/components/pos/CameraScanner'
 import { useProductoImagen } from '@/hooks/useProductoImagen'
 import { supabase } from '@/lib/supabase'
 import { cx } from '@/utils/format'
+import { beepExito } from '@/utils/beep'
 import type { Categoria, Producto } from '@/types/database'
 
 interface Props {
@@ -73,6 +74,7 @@ export function ProductForm({ open, onClose, producto, categorias, onGuardado }:
   }
 
   function onSkuDetectado(codigo: string) {
+    beepExito()
     set('sku', codigo.trim())
     setScannerSku(false)
     if ('vibrate' in navigator) navigator.vibrate([30, 30, 30])
