@@ -27,6 +27,8 @@ const vacio = {
   stock_minimo: '5',
   unidad: 'unidad',
   image_url: '',
+  unidades_por_caja: '',
+  precio_venta_caja: '',
 }
 
 export function ProductForm({ open, onClose, producto, categorias, onGuardado }: Props) {
@@ -36,6 +38,7 @@ export function ProductForm({ open, onClose, producto, categorias, onGuardado }:
   const [f, setF] = useState(vacio)
   const [guardando, setGuardando] = useState(false)
   const [scannerSku, setScannerSku] = useState(false)
+  const [tieneCaja, setTieneCaja] = useState(false)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [arrastrando, setArrastrando] = useState(false)
@@ -52,9 +55,13 @@ export function ProductForm({ open, onClose, producto, categorias, onGuardado }:
         stock_minimo: String(producto.stock_minimo),
         unidad: producto.unidad,
         image_url: producto.image_url ?? '',
+        unidades_por_caja: String(producto.unidades_por_caja ?? ''),
+        precio_venta_caja: String(producto.precio_venta_caja ?? ''),
       })
+      setTieneCaja(producto.tiene_caja)
     } else {
       setF(vacio)
+      setTieneCaja(false)
     }
     setImageFile(null)
     setImagePreview(null)
@@ -108,6 +115,9 @@ export function ProductForm({ open, onClose, producto, categorias, onGuardado }:
       precio_venta: parseFloat(f.precio_venta) || 0,
       stock_minimo: parseInt(f.stock_minimo) || 0,
       unidad: f.unidad,
+      tiene_caja: tieneCaja,
+      unidades_por_caja: tieneCaja ? (parseInt(f.unidades_por_caja) || null) : null,
+      precio_venta_caja: tieneCaja ? (parseFloat(f.precio_venta_caja) || null) : null,
     }
     try {
       if (producto) {
@@ -294,6 +304,61 @@ export function ProductForm({ open, onClose, producto, categorias, onGuardado }:
               placeholder="5"
             />
           </Campo>
+        </div>
+
+        {/* Venta por caja */}
+        <div className="rounded-xl border border-ink-100 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-ink-800">Venta por caja</p>
+              <p className="text-xs text-ink-400">
+                Permite vender en cajas además de unidades individuales
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={tieneCaja}
+              onClick={() => setTieneCaja((v) => !v)}
+              className={cx(
+                'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
+                tieneCaja ? 'bg-accent-500' : 'bg-ink-200',
+              )}
+            >
+              <span
+                className={cx(
+                  'inline-block size-5 rounded-full bg-white shadow transition-transform',
+                  tieneCaja ? 'translate-x-5' : 'translate-x-0.5',
+                )}
+              />
+            </button>
+          </div>
+
+          {tieneCaja && (
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <Campo label="Unidades por caja">
+                <input
+                  type="number"
+                  min={1}
+                  className="input tabular"
+                  value={f.unidades_por_caja}
+                  onChange={(e) => set('unidades_por_caja', e.target.value)}
+                  placeholder="12"
+                />
+              </Campo>
+              <Campo label="Precio caja (S/)">
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  className="input tabular"
+                  value={f.precio_venta_caja}
+                  onChange={(e) => set('precio_venta_caja', e.target.value)}
+                  placeholder="0.00"
+                />
+              </Campo>
+            </div>
+          )}
         </div>
 
         {/* Foto del producto */}

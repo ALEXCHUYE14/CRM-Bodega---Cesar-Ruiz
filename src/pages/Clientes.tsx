@@ -9,6 +9,8 @@ import {
   CreditCard,
   History,
   ArrowDownLeft,
+  MessageCircle,
+  Copy,
 } from 'lucide-react'
 import { useClientes } from '@/hooks/useClientes'
 import { Button, Card, Badge } from '@/components/ui/Button'
@@ -31,6 +33,7 @@ export function Clientes() {
   const [pagos, setPagos] = useState<PagoCredito[]>([])
   const [confirmando, setConfirmando] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
+  const [whatsappCliente, setWhatsappCliente] = useState<ClienteCredito | null>(null)
   const [f, setF] = useState(VACIO)
   const [montoAbono, setMontoAbono] = useState('')
   const [notaAbono, setNotaAbono] = useState('')
@@ -120,6 +123,26 @@ export function Clientes() {
     setPagos([])
     const data = await obtenerPagos(c.id)
     setPagos(data)
+  }
+
+  function mensajeDeuda(c: ClienteCredito): string {
+    return `Hola ${c.nombre}, le recordamos que tiene una deuda pendiente de *${money(c.deuda_actual)}* en *Bodega Cesar Ruiz*. Le pedimos amablemente que se acerque a cancelarla. ¡Muchas gracias! 🙏`
+  }
+
+  function abrirWhatsApp(c: ClienteCredito) {
+    const msg = mensajeDeuda(c)
+    if (c.telefono) {
+      const tel = c.telefono.replace(/\D/g, '')
+      window.open(`https://wa.me/51${tel}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
+    } else {
+      setWhatsappCliente(c)
+    }
+  }
+
+  async function copiarMensaje(c: ClienteCredito) {
+    await navigator.clipboard.writeText(mensajeDeuda(c))
+    toast.exito('Mensaje copiado al portapapeles')
+    setWhatsappCliente(null)
   }
 
   async function borrar(id: string) {
@@ -237,6 +260,11 @@ export function Clientes() {
                   {/* Acciones desktop */}
                   <div className="hidden w-32 items-center justify-end gap-1 lg:flex">
                     {c.deuda_actual > 0 && (
+                      <IconBtn title="Mensaje WhatsApp" onClick={() => abrirWhatsApp(c)}>
+                        <MessageCircle className="size-4 text-green-600" />
+                      </IconBtn>
+                    )}
+                    {c.deuda_actual > 0 && (
                       <IconBtn title="Registrar abono" onClick={() => { setAbonoCliente(c); setMontoAbono(''); setNotaAbono('') }}>
                         <ArrowDownLeft className="size-4" />
                       </IconBtn>
@@ -261,6 +289,14 @@ export function Clientes() {
                       <span className="text-xs text-ink-400">/ {money(c.limite_credito)}</span>
                     </div>
                     <div className="flex gap-1.5">
+                      {c.deuda_actual > 0 && (
+                        <button
+                          onClick={() => abrirWhatsApp(c)}
+                          className="flex items-center gap-1 rounded-lg bg-green-50 px-2.5 py-1.5 text-xs font-semibold text-green-700"
+                        >
+                          <MessageCircle className="size-3.5" /> WA
+                        </button>
+                      )}
                       {c.deuda_actual > 0 && (
                         <button
                           onClick={() => { setAbonoCliente(c); setMontoAbono(''); setNotaAbono('') }}
@@ -449,6 +485,34 @@ export function Clientes() {
               </li>
             ))}
           </ul>
+        )}
+      </Sheet>
+
+      {/* Sheet: mensaje WhatsApp (solo cuando cliente sin teléfono) */}
+      <Sheet
+        open={!!whatsappCliente}
+        onClose={() => setWhatsappCliente(null)}
+        title="Mensaje de deuda"
+        maxWidth="max-w-sm"
+        footer={
+          <Button
+            variant="secondary"
+            className="w-full"
+            onClick={() => whatsappCliente && copiarMensaje(whatsappCliente)}
+          >
+            <Copy className="size-4" /> Copiar mensaje
+          </Button>
+        }
+      >
+        {whatsappCliente && (
+          <div className="space-y-3">
+            <p className="text-xs text-ink-400">
+              Este cliente no tiene teléfono registrado. Copia el mensaje y envíalo manualmente.
+            </p>
+            <div className="rounded-xl border border-ink-100 bg-ink-50 px-4 py-3 text-sm leading-relaxed text-ink-700">
+              {mensajeDeuda(whatsappCliente)}
+            </div>
+          </div>
         )}
       </Sheet>
 

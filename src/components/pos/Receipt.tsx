@@ -10,6 +10,12 @@ const ETIQUETA: Record<string, string> = {
   fiado: 'Fiado',
 }
 
+function precioItem(item: ItemCarrito): number {
+  return item.modalidad === 'caja'
+    ? (item.producto.precio_venta_caja ?? item.producto.precio_venta)
+    : item.producto.precio_venta
+}
+
 interface Props {
   open: boolean
   onClose: () => void
@@ -21,11 +27,12 @@ export function Receipt({ open, onClose, venta, items }: Props) {
   function imprimir() {
     const lineas = items
       .map((i) => {
-        const nombre = i.producto.nombre
-        const precio = money(i.producto.precio_venta * i.cantidad)
+        const esCaja = i.modalidad === 'caja'
+        const etiq = esCaja ? ' [Caja]' : ''
+        const precio = money(precioItem(i) * i.cantidad)
         return `
           <div class="item">
-            <div class="item-nombre">${i.cantidad}x ${nombre}</div>
+            <div class="item-nombre">${i.cantidad}x ${i.producto.nombre}${etiq}</div>
             <div class="item-precio">${precio}</div>
           </div>`
       })
@@ -291,12 +298,17 @@ export function Receipt({ open, onClose, venta, items }: Props) {
         {/* Items */}
         <div className="space-y-1">
           {items.map((i) => (
-            <div key={i.producto.id} className="flex justify-between gap-2">
+            <div key={`${i.producto.id}::${i.modalidad}`} className="flex justify-between gap-2">
               <span className="min-w-0 break-words font-semibold text-ink-800">
                 {i.cantidad}x {i.producto.nombre}
+                {i.modalidad === 'caja' && (
+                  <span className="ml-1 rounded bg-accent-100 px-1 py-0.5 text-[0.55rem] font-bold uppercase text-accent-700">
+                    Caja
+                  </span>
+                )}
               </span>
               <span className="tabular shrink-0 font-bold">
-                {money(i.producto.precio_venta * i.cantidad)}
+                {money(precioItem(i) * i.cantidad)}
               </span>
             </div>
           ))}

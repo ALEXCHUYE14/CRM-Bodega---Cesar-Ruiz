@@ -22,6 +22,8 @@ export type Categoria = {
   creado_en: string
 }
 
+export type ModalidadVenta = 'unidad' | 'caja'
+
 export type Producto = {
   id: string
   sku: string
@@ -29,12 +31,15 @@ export type Producto = {
   categoria_id: string | null
   precio_compra: number
   precio_venta: number
+  precio_venta_caja: number | null
   stock_actual: number
   stock_minimo: number
   unidad: string
   activo: boolean
   image_url: string | null
   fecha_vencimiento: string | null
+  tiene_caja: boolean
+  unidades_por_caja: number | null
   creado_en: string
   actualizado_en: string
   categorias?: Categoria | null
@@ -167,6 +172,7 @@ export type Merma = {
 export type ItemCarrito = {
   producto: Producto
   cantidad: number
+  modalidad: ModalidadVenta
 }
 
 // Tipado minimo para el cliente de Supabase (compatible con GenericSchema)
@@ -199,6 +205,7 @@ export interface Database {
           p_pago_recibido: number
           p_caja_id: string | null
           p_cliente_id: string | null
+          p_tasa_igv?: number
         }
         Returns: Venta
       }

@@ -12,7 +12,7 @@ import {
   LockOpen,
 } from 'lucide-react'
 import { useProductos } from '@/hooks/useProductos'
-import { useCarrito } from '@/hooks/useCarrito'
+import { useCarrito, unidadesReales } from '@/hooks/useCarrito'
 import { useClientes } from '@/hooks/useClientes'
 import { useKeyboardScanner } from '@/hooks/useKeyboardScanner'
 import { useAuth } from '@/context/AuthContext'
@@ -25,7 +25,7 @@ import { CameraScanner } from '@/components/pos/CameraScanner'
 import { PaymentModal } from '@/components/pos/PaymentModal'
 import { Receipt } from '@/components/pos/Receipt'
 import { money, cx } from '@/utils/format'
-import type { ItemCarrito, MetodoPago, Producto, Venta } from '@/types/database'
+import type { ItemCarrito, MetodoPago, ModalidadVenta, Producto, Venta } from '@/types/database'
 
 export function POS() {
   const { productos, categorias, cargando } = useProductos()
@@ -62,7 +62,7 @@ export function POS() {
         toast.error(`Sin stock: ${prod.nombre}`)
         return
       }
-      carrito.agregar(prod)
+      carrito.agregar(prod, 'unidad')
       toast.exito(`+ ${prod.nombre}`)
     },
     [productos, carrito, toast],
@@ -101,7 +101,11 @@ export function POS() {
       const items = carrito.items.map((i) => ({
         producto_id: i.producto.id,
         cantidad: i.cantidad,
-        precio_unitario: i.producto.precio_venta,
+        precio_unitario:
+          i.modalidad === 'caja'
+            ? (i.producto.precio_venta_caja ?? i.producto.precio_venta)
+            : i.producto.precio_venta,
+        unidades_a_descontar: unidadesReales(i),
       }))
       const { data, error } = await supabase.rpc('registrar_venta', {
         p_items: items,
@@ -274,7 +278,11 @@ export function POS() {
         ) : (
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">
             {filtrados.map((p) => (
-              <ProductoCard key={p.id} producto={p} onClick={() => carrito.agregar(p)} />
+              <ProductoCard
+                key={p.id}
+                producto={p}
+                onAgregar={(modalidad) => carrito.agregar(p, modalidad)}
+              />
             ))}
           </div>
         )}
@@ -378,12 +386,98 @@ function Chip({
   )
 }
 
-function ProductoCard({ producto, onClick }: { producto: Producto; onClick: () => void }) {
+function ProductoCard({
+  producto,
+  onAgregar,
+}: {
+  producto: Producto
+  onAgregar: (modalidad: ModalidadVenta) => void
+}) {
   const agotado = producto.stock_actual <= 0
   const bajo = producto.stock_actual > 0 && producto.stock_actual <= producto.stock_minimo
+  const cajaDisp = producto.tiene_caja
+    ? Math.floor(producto.stock_actual / (producto.unidades_por_caja ?? 1))
+    : 0
+
+  const imgSection = (
+    <div className="relative aspect-square w-full overflow-hidden bg-ink-50">
+      {producto.image_url ? (
+        <img
+          src={producto.image_url}
+          alt={producto.nombre}
+          loading="lazy"
+          decoding="async"
+          className="h-full w-full object-cover transition group-hover:scale-[1.03]"
+        />
+      ) : (
+        <div className="grid h-full w-full place-items-center">
+          <span
+            className="size-5 rounded-full opacity-60"
+            style={{ background: producto.categorias?.color ?? '#d4d4d0' }}
+          />
+        </div>
+      )}
+      <div className="absolute bottom-1.5 right-1.5">
+        {agotado ? (
+          <Badge tone="danger">Agotado</Badge>
+        ) : bajo ? (
+          <Badge tone="warning">{producto.stock_actual} u.</Badge>
+        ) : null}
+      </div>
+    </div>
+  )
+
+  const infoSection = (
+    <div className="p-2.5">
+      <p className="line-clamp-2 text-xs font-semibold leading-snug text-ink-800">
+        {producto.nombre}
+      </p>
+      <div className="mt-1 flex items-center justify-between gap-1">
+        <p className="tabular font-display text-base font-bold text-ink-900">
+          {money(producto.precio_venta)}
+        </p>
+        {!agotado && !bajo && (
+          <span className="text-[0.65rem] font-medium text-ink-300">
+            {producto.stock_actual} u.
+          </span>
+        )}
+      </div>
+    </div>
+  )
+
+  if (producto.tiene_caja) {
+    return (
+      <div
+        className={cx(
+          'group flex flex-col overflow-hidden rounded-xl border border-ink-100 bg-white text-left transition',
+          agotado && 'opacity-50',
+        )}
+      >
+        {imgSection}
+        {infoSection}
+        <div className="flex gap-1 border-t border-ink-100 p-1.5">
+          <button
+            onClick={() => onAgregar('unidad')}
+            disabled={agotado}
+            className="flex-1 rounded-lg bg-ink-100 py-1.5 text-xs font-semibold text-ink-700 transition hover:bg-ink-200 disabled:opacity-40"
+          >
+            Unidad
+          </button>
+          <button
+            onClick={() => onAgregar('caja')}
+            disabled={agotado || cajaDisp <= 0}
+            className="flex-1 rounded-lg bg-accent-100 py-1.5 text-xs font-semibold text-accent-700 transition hover:bg-accent-200 disabled:opacity-40"
+          >
+            Caja{cajaDisp > 0 ? ` (${cajaDisp})` : ''}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <button
-      onClick={onClick}
+      onClick={() => onAgregar('unidad')}
       disabled={agotado}
       className={cx(
         'group flex flex-col overflow-hidden rounded-xl border border-ink-100 bg-white text-left transition focusable',
@@ -391,50 +485,8 @@ function ProductoCard({ producto, onClick }: { producto: Producto; onClick: () =
         agotado && 'cursor-not-allowed opacity-50',
       )}
     >
-      {/* Imagen / placeholder */}
-      <div className="relative aspect-square w-full overflow-hidden bg-ink-50">
-        {producto.image_url ? (
-          <img
-            src={producto.image_url}
-            alt={producto.nombre}
-            loading="lazy"
-            decoding="async"
-            className="h-full w-full object-cover transition group-hover:scale-[1.03]"
-          />
-        ) : (
-          <div className="grid h-full w-full place-items-center">
-            <span
-              className="size-5 rounded-full opacity-60"
-              style={{ background: producto.categorias?.color ?? '#d4d4d0' }}
-            />
-          </div>
-        )}
-        {/* Badge de stock superpuesto */}
-        <div className="absolute bottom-1.5 right-1.5">
-          {agotado ? (
-            <Badge tone="danger">Agotado</Badge>
-          ) : bajo ? (
-            <Badge tone="warning">{producto.stock_actual} u.</Badge>
-          ) : null}
-        </div>
-      </div>
-
-      {/* Info */}
-      <div className="p-2.5">
-        <p className="line-clamp-2 text-xs font-semibold leading-snug text-ink-800">
-          {producto.nombre}
-        </p>
-        <div className="mt-1 flex items-center justify-between gap-1">
-          <p className="tabular font-display text-base font-bold text-ink-900">
-            {money(producto.precio_venta)}
-          </p>
-          {!agotado && !bajo && (
-            <span className="text-[0.65rem] font-medium text-ink-300">
-              {producto.stock_actual} u.
-            </span>
-          )}
-        </div>
-      </div>
+      {imgSection}
+      {infoSection}
     </button>
   )
 }
@@ -474,6 +526,18 @@ function CartPanel({ carrito, onCobrar }: { carrito: CarritoCtx; onCobrar: () =>
   )
 }
 
+function precioItem(item: ItemCarrito): number {
+  return item.modalidad === 'caja'
+    ? (item.producto.precio_venta_caja ?? item.producto.precio_venta)
+    : item.producto.precio_venta
+}
+
+function maxDisp(item: ItemCarrito): number {
+  return item.modalidad === 'caja'
+    ? Math.floor(item.producto.stock_actual / (item.producto.unidades_por_caja ?? 1))
+    : item.producto.stock_actual
+}
+
 function CartItems({ carrito }: { carrito: CarritoCtx }) {
   if (carrito.vacio) {
     return (
@@ -486,41 +550,54 @@ function CartItems({ carrito }: { carrito: CarritoCtx }) {
   }
   return (
     <ul className="space-y-1">
-      {carrito.items.map((i) => (
-        <li key={i.producto.id} className="flex items-center gap-2 rounded-xl p-2 hover:bg-ink-50">
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-ink-800">{i.producto.nombre}</p>
-            <p className="tabular text-xs text-ink-400">
-              {money(i.producto.precio_venta)} c/u
-            </p>
-          </div>
-          <div className="flex items-center gap-1 rounded-lg bg-ink-100 p-0.5">
-            <button
-              onClick={() => carrito.cambiarCantidad(i.producto.id, i.cantidad - 1)}
-              className="grid size-7 place-items-center rounded-md text-ink-600 hover:bg-white"
-            >
-              <Minus className="size-3.5" />
-            </button>
-            <span className="tabular w-6 text-center text-sm font-bold">{i.cantidad}</span>
-            <button
-              onClick={() => carrito.cambiarCantidad(i.producto.id, i.cantidad + 1)}
-              disabled={i.cantidad >= i.producto.stock_actual}
-              className="grid size-7 place-items-center rounded-md text-ink-600 hover:bg-white disabled:opacity-30"
-            >
-              <Plus className="size-3.5" />
-            </button>
-          </div>
-          <p className="tabular w-16 shrink-0 text-right text-sm font-bold text-ink-900">
-            {money(i.producto.precio_venta * i.cantidad)}
-          </p>
-          <button
-            onClick={() => carrito.quitar(i.producto.id)}
-            className="grid size-7 place-items-center rounded-md text-ink-300 hover:bg-red-50 hover:text-red-600"
+      {carrito.items.map((i) => {
+        const precio = precioItem(i)
+        const max = maxDisp(i)
+        const esCaja = i.modalidad === 'caja'
+        return (
+          <li
+            key={`${i.producto.id}::${i.modalidad}`}
+            className="flex items-center gap-2 rounded-xl p-2 hover:bg-ink-50"
           >
-            <Trash2 className="size-3.5" />
-          </button>
-        </li>
-      ))}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-ink-800">{i.producto.nombre}</p>
+              <p className="tabular text-xs text-ink-400">
+                {esCaja && (
+                  <span className="mr-1 rounded bg-accent-100 px-1 py-0.5 text-[0.6rem] font-bold uppercase text-accent-700">
+                    Caja
+                  </span>
+                )}
+                {money(precio)} c/{esCaja ? 'caja' : 'u'}
+              </p>
+            </div>
+            <div className="flex items-center gap-1 rounded-lg bg-ink-100 p-0.5">
+              <button
+                onClick={() => carrito.cambiarCantidad(i.producto.id, i.modalidad, i.cantidad - 1)}
+                className="grid size-7 place-items-center rounded-md text-ink-600 hover:bg-white"
+              >
+                <Minus className="size-3.5" />
+              </button>
+              <span className="tabular w-6 text-center text-sm font-bold">{i.cantidad}</span>
+              <button
+                onClick={() => carrito.cambiarCantidad(i.producto.id, i.modalidad, i.cantidad + 1)}
+                disabled={i.cantidad >= max}
+                className="grid size-7 place-items-center rounded-md text-ink-600 hover:bg-white disabled:opacity-30"
+              >
+                <Plus className="size-3.5" />
+              </button>
+            </div>
+            <p className="tabular w-16 shrink-0 text-right text-sm font-bold text-ink-900">
+              {money(precio * i.cantidad)}
+            </p>
+            <button
+              onClick={() => carrito.quitar(i.producto.id, i.modalidad)}
+              className="grid size-7 place-items-center rounded-md text-ink-300 hover:bg-red-50 hover:text-red-600"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          </li>
+        )
+      })}
     </ul>
   )
 }

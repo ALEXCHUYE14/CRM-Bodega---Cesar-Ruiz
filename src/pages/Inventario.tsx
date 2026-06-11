@@ -7,12 +7,14 @@ import {
   History,
   AlertTriangle,
   PackageX,
+  Trash2,
 } from 'lucide-react'
 import { useProductos } from '@/hooks/useProductos'
 import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { Card, Badge, Button } from '@/components/ui/Button'
 import { Sheet } from '@/components/ui/Sheet'
+import { useToast } from '@/components/ui/Toast'
 import { ProductForm } from '@/components/inventory/ProductForm'
 import { StockAdjust } from '@/components/inventory/StockAdjust'
 import { money, cx, fechaHora } from '@/utils/format'
@@ -21,12 +23,15 @@ import type { MovimientoInventario, Producto } from '@/types/database'
 export function Inventario() {
   const { productos, categorias, recargar } = useProductos()
   const { esAdmin } = useAuth()
+  const toast = useToast()
   const [q, setQ] = useState('')
   const [soloBajo, setSoloBajo] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [editando, setEditando] = useState<Producto | null>(null)
   const [ajuste, setAjuste] = useState<Producto | null>(null)
   const [kardex, setKardex] = useState<Producto | null>(null)
+  const [eliminarConfirm, setEliminarConfirm] = useState<Producto | null>(null)
+  const [eliminando, setEliminando] = useState(false)
 
   const filtrados = useMemo(() => {
     const t = q.trim().toLowerCase()
@@ -50,6 +55,24 @@ export function Inventario() {
   function abrirEditar(p: Producto) {
     setEditando(p)
     setFormOpen(true)
+  }
+
+  async function confirmarEliminar() {
+    if (!eliminarConfirm) return
+    setEliminando(true)
+    try {
+      const { error } = await supabase
+        .from('productos')
+        .update({ activo: false })
+        .eq('id', eliminarConfirm.id)
+      if (error) throw error
+      toast.exito(`"${eliminarConfirm.nombre}" eliminado del inventario`)
+      setEliminarConfirm(null)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al eliminar')
+    } finally {
+      setEliminando(false)
+    }
   }
 
   return (
@@ -178,6 +201,11 @@ export function Inventario() {
                         <Pencil className="size-[18px]" />
                       </IconBtn>
                     )}
+                    {esAdmin && (
+                      <IconBtn title="Eliminar" onClick={() => setEliminarConfirm(p)}>
+                        <Trash2 className="size-[18px] text-red-400" />
+                      </IconBtn>
+                    )}
                   </div>
 
                   {/* Acciones movil */}
@@ -202,6 +230,14 @@ export function Inventario() {
                         <Pencil className="size-4" /> Editar
                       </button>
                     )}
+                    {esAdmin && (
+                      <button
+                        onClick={() => setEliminarConfirm(p)}
+                        className="flex items-center justify-center gap-1 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    )}
                   </div>
                 </li>
               )
@@ -209,6 +245,38 @@ export function Inventario() {
           </ul>
         )}
       </Card>
+
+      {/* Confirmación eliminar producto */}
+      <Sheet
+        open={!!eliminarConfirm}
+        onClose={() => setEliminarConfirm(null)}
+        title="Eliminar producto"
+        maxWidth="max-w-sm"
+        footer={
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setEliminarConfirm(null)}>
+              Cancelar
+            </Button>
+            <Button
+              className="flex-1 bg-red-600 text-white hover:bg-red-700"
+              loading={eliminando}
+              onClick={confirmarEliminar}
+            >
+              Eliminar
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-ink-600">
+            ¿Eliminar <b className="text-ink-900">{eliminarConfirm?.nombre}</b>? Dejará de aparecer
+            en el inventario y en el punto de venta.
+          </p>
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            El historial de ventas no se modifica.
+          </p>
+        </div>
+      </Sheet>
 
       <ProductForm
         open={formOpen}
