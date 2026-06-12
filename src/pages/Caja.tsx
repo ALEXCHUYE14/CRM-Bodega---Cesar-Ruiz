@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   DollarSign,
   Lock,
@@ -8,7 +9,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   FileDown,
-  RotateCcw,
+  LogOut,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useCajaCtx } from '@/context/CajaContext'
@@ -368,10 +369,10 @@ async function generarReportePDF(cajaData: CajaRegistro, montoRealContado: numbe
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export function Caja() {
-  const { session, perfil } = useAuth()
+  const { session, perfil, signOut } = useAuth()
   const { caja, cargando, abrir, cerrar, total } = useCajaCtx()
-  // Para el historial (puede ser la misma instancia gracias a la misma cajeroId)
   const { historial } = useCaja(session?.user?.id ?? null)
+  const navigate = useNavigate()
   const toast = useToast()
 
   const [abrirOpen, setAbrirOpen] = useState(false)
@@ -705,12 +706,17 @@ export function Caja() {
         maxWidth="max-w-sm"
         footer={
           <Button
-            variant="secondary"
+            variant="primary"
             size="lg"
-            className="w-full"
-            onClick={() => setResumenOpen(false)}
+            className="w-full !bg-ink-900 hover:!bg-ink-700"
+            onClick={async () => {
+              setResumenOpen(false)
+              // Limpia sesión y redirige al login para iniciar jornada nueva
+              await signOut()
+              navigate('/login', { replace: true })
+            }}
           >
-            <RotateCcw className="size-5" /> Listo — Sistema reiniciado
+            <LogOut className="size-5" /> Cerrar sesión e ir al inicio
           </Button>
         }
       >

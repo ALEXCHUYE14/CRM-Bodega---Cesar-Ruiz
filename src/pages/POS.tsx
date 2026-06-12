@@ -226,7 +226,9 @@ export function POS() {
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <h1 className="font-display text-2xl font-bold text-ink-900">Punto de venta</h1>
-            <p className="text-sm text-ink-400">Hola, {perfil?.nombre} · escanea o busca</p>
+            <p className="text-sm text-ink-400">
+              Hola, {perfil?.nombre?.split(' ')[0] ?? 'Cajero'} · escanea o busca
+            </p>
           </div>
           <Button
             variant="outline"
