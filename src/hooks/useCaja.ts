@@ -12,6 +12,9 @@ export interface ResumenCierre {
   diferencia: number
 }
 
+// Clave de localStorage para persistir el ID de caja activa entre recargas
+const CAJA_KEY = 'bodeguita_caja_activa_id'
+
 export function useCaja(cajeroId: string | null) {
   const [caja, setCaja] = useState<CajaRegistro | null>(null)
   const [historial, setHistorial] = useState<CajaRegistro[]>([])
@@ -23,18 +26,53 @@ export function useCaja(cajeroId: string | null) {
       return
     }
     setCargando(true)
-    // Buscar caja abierta del cajero actual (del dia de hoy)
-    const hoy = new Date()
-    hoy.setHours(0, 0, 0, 0)
-    const { data: cajaAbierta } = await supabase
-      .from('cajas')
-      .select('*')
-      .eq('cajero_id', cajeroId)
-      .eq('estado', 'abierta')
-      .gte('abierta_en', hoy.toISOString())
-      .maybeSingle()
-    setCaja(cajaAbierta ?? null)
-    setCargando(false)
+    try {
+      // Sin restricción de fecha: busca cualquier caja abierta del cajero
+      // (el filtro por fecha anterior causaba pérdida de estado al recargar
+      //  cuando había diferencia entre zona horaria local y UTC)
+      const { data: cajaAbierta } = await supabase
+        .from('cajas')
+        .select('*')
+        .eq('cajero_id', cajeroId)
+        .eq('estado', 'abierta')
+        .order('abierta_en', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (cajaAbierta) {
+        // Sincroniza localStorage para resiliencia ante recargas
+        localStorage.setItem(CAJA_KEY, cajaAbierta.id)
+        setCaja(cajaAbierta)
+        setCargando(false)
+        return
+      }
+
+      // Fallback: intenta restaurar desde localStorage si la consulta principal no encontró nada
+      const storedId = localStorage.getItem(CAJA_KEY)
+      if (storedId) {
+        const { data: cajaPorId } = await supabase
+          .from('cajas')
+          .select('*')
+          .eq('id', storedId)
+          .eq('cajero_id', cajeroId)
+          .eq('estado', 'abierta')
+          .maybeSingle()
+
+        if (cajaPorId) {
+          setCaja(cajaPorId)
+        } else {
+          // El ID guardado ya no corresponde a una caja abierta
+          localStorage.removeItem(CAJA_KEY)
+          setCaja(null)
+        }
+      } else {
+        setCaja(null)
+      }
+    } catch {
+      setCaja(null)
+    } finally {
+      setCargando(false)
+    }
   }, [cajeroId])
 
   const cargarHistorial = useCallback(async () => {
@@ -68,6 +106,8 @@ export function useCaja(cajeroId: string | null) {
       .select()
       .single()
     if (error) throw error
+    // Persiste inmediatamente en localStorage para sobrevivir recargas
+    localStorage.setItem(CAJA_KEY, data.id)
     setCaja(data)
     setHistorial((prev) => [data, ...prev])
     return data
@@ -88,6 +128,8 @@ export function useCaja(cajeroId: string | null) {
       .select()
       .single()
     if (error) throw error
+    // Limpia localStorage al cerrar
+    localStorage.removeItem(CAJA_KEY)
     setCaja(null)
     setHistorial((prev) => prev.map((x) => (x.id === data.id ? data : x)))
     return {
@@ -118,7 +160,7 @@ export function useCaja(cajeroId: string | null) {
       p_metodo: metodo,
       p_monto: monto,
     } as never)
-    // Update local state optimistically
+    // Actualiza estado local de forma optimista
     setCaja((prev) =>
       prev && prev.id === cajaId
         ? { ...prev, [campo]: (prev[campo as keyof CajaRegistro] as number) + monto }

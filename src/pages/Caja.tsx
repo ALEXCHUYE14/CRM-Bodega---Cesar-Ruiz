@@ -3,25 +3,374 @@ import {
   DollarSign,
   Lock,
   LockOpen,
-  TrendingUp,
   Smartphone,
   HandCoins,
   CheckCircle2,
   AlertTriangle,
+  FileDown,
+  RotateCcw,
 } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 import { useCajaCtx } from '@/context/CajaContext'
 import { useCaja } from '@/hooks/useCaja'
 import { useAuth } from '@/context/AuthContext'
 import { Button, Card, Badge } from '@/components/ui/Button'
 import { Sheet } from '@/components/ui/Sheet'
 import { useToast } from '@/components/ui/Toast'
-import { money, fechaHora, horaCorta, cx } from '@/utils/format'
+import { money, fechaHora, horaCorta, ETIQUETA_PAGO, cx } from '@/utils/format'
 import type { ResumenCierre } from '@/hooks/useCaja'
+import type { CajaRegistro } from '@/types/database'
+
+// ─── Generador de reporte PDF de cierre de caja ───────────────────────────────
+
+async function generarReportePDF(cajaData: CajaRegistro, montoRealContado: number): Promise<void> {
+  // Abrimos la ventana ANTES del primer await para evitar bloqueo de popup
+  const w = window.open('', '_blank', 'width=960,height=780,menubar=no,toolbar=no')
+  if (!w) {
+    console.warn('El navegador bloqueó el popup para el PDF. Habilita los popups para este sitio.')
+    return
+  }
+
+  // Mostramos estado de carga inmediatamente
+  w.document.write(
+    '<html><body style="font-family:sans-serif;display:grid;place-items:center;min-height:100vh;background:#f8f8f7;"><p style="font-size:1.1rem;color:#666;">Generando reporte PDF...</p></body></html>',
+  )
+
+  try {
+    // Consulta las ventas vinculadas a esta caja
+    const { data: ventasData, error } = await supabase
+      .from('ventas')
+      .select('*')
+      .eq('caja_id', cajaData.id)
+      .order('creado_en', { ascending: true })
+
+    if (error) throw error
+
+    const ventas = ventasData ?? []
+    const ventasValidas = ventas.filter((v) => !v.anulada)
+    const ventasAnuladas = ventas.filter((v) => v.anulada)
+
+    const totalEfectivo = ventasValidas
+      .filter((v) => v.metodo === 'efectivo')
+      .reduce((s, v) => s + v.total, 0)
+    const totalYape = ventasValidas
+      .filter((v) => v.metodo === 'yape')
+      .reduce((s, v) => s + v.total, 0)
+    const totalFiado = ventasValidas
+      .filter((v) => v.metodo === 'fiado')
+      .reduce((s, v) => s + v.total, 0)
+    const totalGeneral = ventasValidas.reduce((s, v) => s + v.total, 0)
+
+    const esperadoEfectivo = cajaData.monto_inicial + cajaData.total_efectivo
+    const diferencia = montoRealContado - esperadoEfectivo
+    const diferenciaColor = diferencia >= 0 ? '#065f46' : '#991b1b'
+    const diferenciaFondo = diferencia >= 0 ? '#ecfdf5' : '#fef2f2'
+    const diferenciaBorde = diferencia >= 0 ? '#a7f3d0' : '#fecaca'
+
+    const logoUrl = `${window.location.origin}/img/logo.jpeg`
+    const ahora = new Date().toISOString()
+
+    const filasVentas =
+      ventasValidas.length > 0
+        ? ventasValidas
+            .map(
+              (v) => `
+          <tr>
+            <td class="center">#${String(v.numero).padStart(4, '0')}</td>
+            <td class="center">${horaCorta(v.creado_en)}</td>
+            <td class="center"><span class="badge badge-${v.metodo}">${ETIQUETA_PAGO[v.metodo] ?? v.metodo}</span></td>
+            <td>${v.cliente_nombre ? `<span style="color:#92400e;">${v.cliente_nombre}</span>` : '<span style="color:#aaa;">—</span>'}</td>
+            <td class="right money">${money(v.total)}</td>
+          </tr>`,
+            )
+            .join('')
+        : `<tr><td colspan="5" style="text-align:center;padding:16px;color:#aaa;">Sin ventas registradas en este turno</td></tr>`
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Cierre de Caja — Bodeguita Juli</title>
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      font-size: 10pt;
+      color: #1a1a1a;
+      background: #fff;
+      padding: 18mm 16mm 20mm;
+    }
+
+    /* ── Encabezado ── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 2.5px solid #0e0e0d;
+      padding-bottom: 6mm;
+      margin-bottom: 8mm;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .logo {
+      height: 54px;
+      width: auto;
+      border-radius: 8px;
+      object-fit: contain;
+    }
+    .store-name { font-size: 18pt; font-weight: 900; letter-spacing: -0.5px; color: #0e0e0d; line-height: 1.2; }
+    .store-sub { font-size: 8.5pt; color: #888; margin-top: 2px; }
+    .report-info { text-align: right; }
+    .report-title { font-size: 13pt; font-weight: 800; color: #0e0e0d; }
+    .report-meta { font-size: 8.5pt; color: #666; margin-top: 3px; line-height: 1.7; }
+
+    /* ── Secciones ── */
+    .section { margin-bottom: 8mm; }
+    .section-title {
+      font-size: 10.5pt;
+      font-weight: 800;
+      color: #0e0e0d;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      border-bottom: 1px solid #e5e5e5;
+      padding-bottom: 2.5mm;
+      margin-bottom: 4mm;
+    }
+
+    /* ── Tarjetas de sesión ── */
+    .info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4mm; }
+    .info-card {
+      background: #f8f8f7;
+      border: 1px solid #e5e5e5;
+      border-radius: 6px;
+      padding: 3.5mm;
+    }
+    .info-label { font-size: 7.5pt; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 1.5mm; }
+    .info-value { font-size: 10pt; font-weight: 700; color: #0e0e0d; }
+
+    /* ── Tabla de ventas ── */
+    table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+    thead th {
+      background: #0e0e0d;
+      color: #fff;
+      padding: 3mm 4mm;
+      font-weight: 700;
+      text-align: left;
+      font-size: 8.5pt;
+      letter-spacing: 0.3px;
+    }
+    thead th.center { text-align: center; }
+    thead th.right { text-align: right; }
+    tbody tr:nth-child(even) { background: #fafafa; }
+    tbody tr:hover { background: #f0f0ef; }
+    tbody td { padding: 2.5mm 4mm; border-bottom: 1px solid #eee; vertical-align: middle; }
+    tbody td.center { text-align: center; }
+    tbody td.right { text-align: right; }
+    tbody td.money { font-weight: 700; }
+    tfoot td {
+      padding: 3mm 4mm;
+      font-weight: 800;
+      font-size: 10pt;
+      background: #f0f0ef;
+      border-top: 2px solid #0e0e0d;
+    }
+    tfoot td.right { text-align: right; color: #0e0e0d; }
+
+    /* ── Badges de método ── */
+    .badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 7.5pt; font-weight: 700; }
+    .badge-efectivo { background: #ecfdf5; color: #065f46; }
+    .badge-yape { background: #eff6ff; color: #1d4ed8; }
+    .badge-fiado { background: #fffbeb; color: #92400e; }
+
+    /* ── Resumen financiero ── */
+    .summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4mm; margin-bottom: 4mm; }
+    .summary-card {
+      border-radius: 8px;
+      padding: 4mm;
+      border: 1px solid;
+    }
+    .summary-card.efectivo { background: #ecfdf5; border-color: #a7f3d0; }
+    .summary-card.yape { background: #eff6ff; border-color: #bfdbfe; }
+    .summary-card.fiado { background: #fffbeb; border-color: #fde68a; }
+    .summary-label { font-size: 7.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.65; margin-bottom: 1.5mm; }
+    .summary-value { font-size: 13pt; font-weight: 900; }
+    .summary-card.efectivo .summary-value { color: #065f46; }
+    .summary-card.yape .summary-value { color: #1d4ed8; }
+    .summary-card.fiado .summary-value { color: #92400e; }
+
+    .total-card {
+      background: #0e0e0d;
+      color: #fff;
+      border-radius: 8px;
+      padding: 4mm 5mm;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 3mm;
+    }
+    .total-label { font-size: 9pt; font-weight: 700; opacity: 0.7; }
+    .total-value { font-size: 16pt; font-weight: 900; }
+
+    .balance-card {
+      border-radius: 8px;
+      padding: 4mm 5mm;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: ${diferenciaFondo};
+      border: 1.5px solid ${diferenciaBorde};
+    }
+    .balance-desc { font-size: 8.5pt; color: #666; }
+    .balance-desc b { color: #1a1a1a; }
+    .balance-value { font-size: 15pt; font-weight: 900; color: ${diferenciaColor}; }
+
+    /* ── Pie ── */
+    .footer {
+      margin-top: 10mm;
+      border-top: 1px solid #e5e5e5;
+      padding-top: 4mm;
+      text-align: center;
+      font-size: 8pt;
+      color: #aaa;
+      line-height: 1.7;
+    }
+
+    @page { size: A4; margin: 0; }
+    @media print {
+      body { padding: 14mm 13mm 16mm; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Encabezado -->
+  <div class="header">
+    <div class="header-left">
+      <img src="${logoUrl}" class="logo" alt="Bodeguita Juli" onerror="this.style.display='none'"/>
+      <div>
+        <div class="store-name">BODEGUITA JULI</div>
+        <div class="store-sub">Sistema de Gestion Comercial · Reporte Interno</div>
+      </div>
+    </div>
+    <div class="report-info">
+      <div class="report-title">Reporte de Cierre de Caja</div>
+      <div class="report-meta">
+        Cajero: <b>${cajaData.cajero_nombre ?? '—'}</b><br/>
+        Generado: ${fechaHora(ahora)}
+      </div>
+    </div>
+  </div>
+
+  <!-- Información de la sesión -->
+  <div class="section">
+    <div class="section-title">Información de la Sesión</div>
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="info-label">Apertura</div>
+        <div class="info-value">${fechaHora(cajaData.abierta_en)}</div>
+      </div>
+      <div class="info-card">
+        <div class="info-label">Cierre</div>
+        <div class="info-value">${fechaHora(ahora)}</div>
+      </div>
+      <div class="info-card">
+        <div class="info-label">Fondo Inicial</div>
+        <div class="info-value">${money(cajaData.monto_inicial)}</div>
+      </div>
+      <div class="info-card">
+        <div class="info-label">Transacciones</div>
+        <div class="info-value">${ventasValidas.length} válidas${ventasAnuladas.length > 0 ? ` · ${ventasAnuladas.length} anuladas` : ''}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabla de ventas -->
+  <div class="section">
+    <div class="section-title">Detalle de Ventas del Turno</div>
+    <table>
+      <thead>
+        <tr>
+          <th class="center">Ticket</th>
+          <th class="center">Hora</th>
+          <th class="center">Método</th>
+          <th>Cliente</th>
+          <th class="right">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filasVentas}
+      </tbody>
+      ${ventasValidas.length > 0 ? `
+      <tfoot>
+        <tr>
+          <td colspan="4"><b>TOTAL VENDIDO (${ventasValidas.length} ventas válidas)</b></td>
+          <td class="right">${money(totalGeneral)}</td>
+        </tr>
+      </tfoot>` : ''}
+    </table>
+  </div>
+
+  <!-- Resumen financiero -->
+  <div class="section">
+    <div class="section-title">Resumen Financiero del Día</div>
+
+    <div class="summary-grid">
+      <div class="summary-card efectivo">
+        <div class="summary-label">Efectivo</div>
+        <div class="summary-value">${money(totalEfectivo)}</div>
+      </div>
+      <div class="summary-card yape">
+        <div class="summary-label">Yape</div>
+        <div class="summary-value">${money(totalYape)}</div>
+      </div>
+      <div class="summary-card fiado">
+        <div class="summary-label">Fiado</div>
+        <div class="summary-value">${money(totalFiado)}</div>
+      </div>
+    </div>
+
+    <div class="total-card">
+      <span class="total-label">TOTAL VENDIDO (Efectivo + Yape + Fiado)</span>
+      <span class="total-value">${money(totalGeneral)}</span>
+    </div>
+
+    <div class="balance-card">
+      <div class="balance-desc">
+        Efectivo esperado en caja: <b>${money(esperadoEfectivo)}</b>
+        &nbsp;·&nbsp; Efectivo contado: <b>${money(montoRealContado)}</b>
+        &nbsp;·&nbsp; <b>${diferencia >= 0 ? 'Sobrante' : 'Faltante'}</b>
+      </div>
+      <div class="balance-value">${diferencia >= 0 ? '+' : ''}${money(diferencia)}</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Bodeguita Juli &nbsp;·&nbsp; Reporte generado el ${fechaHora(ahora)} &nbsp;·&nbsp; Documento de uso interno — no válido como comprobante fiscal
+  </div>
+
+</body>
+</html>`
+
+    w.document.open()
+    w.document.write(html)
+    w.document.close()
+    w.focus()
+    setTimeout(() => {
+      w.print()
+    }, 600)
+  } catch (err) {
+    w.close()
+    throw err
+  }
+}
+
+// ─── Componente principal ─────────────────────────────────────────────────────
 
 export function Caja() {
   const { session, perfil } = useAuth()
   const { caja, cargando, abrir, cerrar, total } = useCajaCtx()
-  // Para admin: también cargar historial global
+  // Para el historial (puede ser la misma instancia gracias a la misma cajeroId)
   const { historial } = useCaja(session?.user?.id ?? null)
   const toast = useToast()
 
@@ -31,6 +380,7 @@ export function Caja() {
   const [montoInicial, setMontoInicial] = useState('')
   const [montoReal, setMontoReal] = useState('')
   const [procesando, setProcesando] = useState(false)
+  const [generandoPDF, setGenerandoPDF] = useState(false)
   const [resumen, setResumen] = useState<ResumenCierre | null>(null)
 
   const RAPIDOS_INICIAL = [50, 100, 150, 200, 300, 500]
@@ -60,13 +410,28 @@ export function Caja() {
       toast.error('Ingresa el monto real contado.')
       return
     }
+    if (!caja) return
+
     setProcesando(true)
     try {
+      // 1. Genera el reporte PDF antes de cerrar (los datos siguen en la BD)
+      setGenerandoPDF(true)
+      try {
+        await generarReportePDF(caja, monto)
+      } catch (pdfErr) {
+        // El PDF es best-effort: si falla no bloqueamos el cierre
+        console.error('Error generando PDF:', pdfErr)
+        toast.error('No se pudo generar el PDF, pero se procederá a cerrar la caja.')
+      } finally {
+        setGenerandoPDF(false)
+      }
+
+      // 2. Cierra la caja en la base de datos
       const r = await cerrar(monto)
       setResumen(r)
       setCerrarOpen(false)
       setResumenOpen(true)
-      toast.exito('Caja cerrada. Revisa el resumen del arqueo.')
+      toast.exito('Caja cerrada correctamente. Reporte PDF generado.')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Error al cerrar la caja')
     } finally {
@@ -214,7 +579,7 @@ export function Caja() {
         </Card>
       )}
 
-      {/* Sheet: abrir caja */}
+      {/* ── Sheet: abrir caja ── */}
       <Sheet
         open={abrirOpen}
         onClose={() => setAbrirOpen(false)}
@@ -263,10 +628,10 @@ export function Caja() {
         </div>
       </Sheet>
 
-      {/* Sheet: cerrar caja */}
+      {/* ── Sheet: cerrar caja ── */}
       <Sheet
         open={cerrarOpen}
-        onClose={() => setCerrarOpen(false)}
+        onClose={() => !procesando && setCerrarOpen(false)}
         title="Cerrar caja"
         maxWidth="max-w-sm"
         footer={
@@ -277,12 +642,25 @@ export function Caja() {
             loading={procesando}
             onClick={confirmarCierre}
           >
-            <Lock className="size-5" /> Cerrar y generar arqueo
+            {generandoPDF ? (
+              <><FileDown className="size-5 animate-bounce" /> Generando PDF...</>
+            ) : (
+              <><Lock className="size-5" /> Cerrar y generar reporte PDF</>
+            )}
           </Button>
         }
       >
         {caja && (
           <div className="space-y-4">
+            {/* Aviso de generación de PDF */}
+            <div className="flex items-start gap-2.5 rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-700">
+              <FileDown className="mt-0.5 size-4 shrink-0" />
+              <span>
+                Al confirmar, se generará y descargará automáticamente un{' '}
+                <strong>reporte PDF</strong> con todas las ventas del turno.
+              </span>
+            </div>
+
             <div className="rounded-xl bg-ink-50 p-4 text-sm space-y-1.5">
               <InfoRow k="Fondo inicial" v={money(caja.monto_inicial)} />
               <InfoRow k="Ventas efectivo" v={money(caja.total_efectivo)} />
@@ -319,20 +697,34 @@ export function Caja() {
         )}
       </Sheet>
 
-      {/* Sheet: resumen de arqueo */}
+      {/* ── Sheet: resumen de arqueo ── */}
       <Sheet
         open={resumenOpen}
         onClose={() => setResumenOpen(false)}
         title="Resumen del arqueo"
         maxWidth="max-w-sm"
         footer={
-          <Button variant="secondary" size="lg" className="w-full" onClick={() => setResumenOpen(false)}>
-            <CheckCircle2 className="size-5" /> Listo
+          <Button
+            variant="secondary"
+            size="lg"
+            className="w-full"
+            onClick={() => setResumenOpen(false)}
+          >
+            <RotateCcw className="size-5" /> Listo — Sistema reiniciado
           </Button>
         }
       >
         {resumen && (
           <div className="space-y-4">
+            {/* Confirmación visual */}
+            <div className="flex flex-col items-center text-center pb-2">
+              <div className="mb-2 grid size-12 place-items-center rounded-full bg-accent-100">
+                <CheckCircle2 className="size-6 text-accent-700" />
+              </div>
+              <p className="font-display text-base font-bold text-ink-900">Caja cerrada correctamente</p>
+              <p className="text-xs text-ink-400 mt-0.5">El reporte PDF fue generado y enviado al navegador</p>
+            </div>
+
             <div className="rounded-xl bg-ink-50 p-4 text-sm space-y-1.5">
               <InfoRow k="Fondo inicial" v={money(resumen.monto_inicial)} />
               <InfoRow k="Ventas efectivo" v={money(resumen.total_efectivo)} />
@@ -343,7 +735,9 @@ export function Caja() {
               <InfoRow k="Ventas Yape" v={money(resumen.total_yape)} />
               <InfoRow k="Ventas Fiado" v={money(resumen.total_fiado)} />
             </div>
+
             <DifCard esperado={resumen.esperado_efectivo} real={resumen.ingresado_real} />
+
             {resumen.diferencia !== 0 && (
               <p className="rounded-xl bg-amber-50 px-3.5 py-3 text-xs text-amber-700">
                 <AlertTriangle className="mb-1 inline size-3.5" />{' '}
@@ -352,12 +746,19 @@ export function Caja() {
                   : `Hay S/ ${resumen.diferencia.toFixed(2)} de sobra.`}
               </p>
             )}
+
+            <div className="rounded-xl bg-accent-50 px-3.5 py-3 text-xs text-accent-700">
+              Los datos han sido archivados en la base de datos para auditoría. El panel está listo
+              para el siguiente turno.
+            </div>
           </div>
         )}
       </Sheet>
     </div>
   )
 }
+
+// ─── Subcomponentes ────────────────────────────────────────────────────────────
 
 function KpiCaja({ icon: Icon, label, valor, color, bg }: {
   icon: typeof DollarSign; label: string; valor: string; color: string; bg: string
@@ -399,6 +800,3 @@ function DifCard({ esperado, real }: { esperado: number; real: number }) {
     </div>
   )
 }
-
-// Silenciar import no usado
-void TrendingUp

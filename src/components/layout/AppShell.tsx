@@ -24,7 +24,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Store className="size-5" />
           </div>
           <div className="leading-tight">
-            <p className="font-display text-[0.95rem] font-bold text-ink-900">Cesar Ruiz</p>
+            <p className="font-display text-[0.95rem] font-bold text-ink-900">Bodeguita Juli</p>
             <p className="text-[0.7rem] font-medium text-ink-400">Gestion Comercial</p>
           </div>
         </div>
@@ -76,7 +76,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="grid size-8 place-items-center rounded-lg bg-ink-900 text-white">
             <Store className="size-[18px]" />
           </div>
-          <span className="font-display text-base font-bold text-ink-900">Cesar Ruiz</span>
+          <span className="font-display text-base font-bold text-ink-900">Bodeguita Juli</span>
         </div>
         <button
           onClick={salir}

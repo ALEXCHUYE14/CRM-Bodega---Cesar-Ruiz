@@ -20,9 +20,19 @@ interface CajaState {
 const CajaContext = createContext<CajaState | undefined>(undefined)
 
 export function CajaProvider({ children }: { children: ReactNode }) {
-  const { session, perfil } = useAuth()
+  // Combinamos el loading de auth con el de caja para evitar un estado
+  // falso de "caja cerrada" mientras Supabase restaura la sesión al recargar
+  const { session, perfil, cargando: authCargando } = useAuth()
   const cajeroId = session?.user?.id ?? null
-  const { caja, cargando, abrir: abrirHook, cerrar, sumarVenta, total, recargar } = useCaja(cajeroId)
+  const {
+    caja,
+    cargando: cajaCargando,
+    abrir: abrirHook,
+    cerrar,
+    sumarVenta,
+    total,
+    recargar,
+  } = useCaja(cajeroId)
 
   async function abrir(montoInicial: number): Promise<CajaRegistro> {
     const nombre = perfil?.nombre ?? 'Cajero'
@@ -31,7 +41,8 @@ export function CajaProvider({ children }: { children: ReactNode }) {
 
   const value: CajaState = {
     caja,
-    cargando,
+    // Mientras auth siga cargando, la caja también se muestra como "cargando"
+    cargando: authCargando || cajaCargando,
     abrir,
     cerrar,
     sumarVenta,

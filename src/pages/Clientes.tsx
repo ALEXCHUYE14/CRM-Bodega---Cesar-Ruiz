@@ -126,7 +126,7 @@ export function Clientes() {
   }
 
   function mensajeDeuda(c: ClienteCredito): string {
-    return `Hola ${c.nombre}, le recordamos que tiene una deuda pendiente de *${money(c.deuda_actual)}* en *Bodega Cesar Ruiz*. Le pedimos amablemente que se acerque a cancelarla. ¡Muchas gracias! 🙏`
+    return `Hola ${c.nombre}, le recordamos que tiene una deuda pendiente de *${money(c.deuda_actual)}* en *Bodeguita Juli*. Le pedimos amablemente que se acerque a cancelarla. ¡Muchas gracias! 🙏`
   }
 
   function abrirWhatsApp(c: ClienteCredito) {
