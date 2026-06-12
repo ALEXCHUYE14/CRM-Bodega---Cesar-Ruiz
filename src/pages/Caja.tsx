@@ -373,7 +373,7 @@ async function generarReportePDF(cajaData: CajaRegistro, montoRealContado: numbe
 
 export function Caja() {
   const { session, perfil, signOut } = useAuth()
-  const { caja, cargando, abrir, cerrar, total } = useCajaCtx()
+  const { caja, cargando, abrir, cerrar } = useCajaCtx()
   const { historial } = useCaja(session?.user?.id ?? null)
   const navigate = useNavigate()
   const toast = useToast()
@@ -503,8 +503,8 @@ export function Caja() {
 
       {/* Estado actual de la caja */}
       {caja ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-2xl border border-ink-900 bg-ink-900 p-4 text-white">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="col-span-2 lg:col-span-1 rounded-2xl border border-ink-900 bg-ink-900 p-4 text-white">
             <div className="mb-3 flex items-center gap-2">
               <span className="relative flex size-2">
                 <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent-400 opacity-75" />
@@ -514,9 +514,11 @@ export function Caja() {
                 Caja abierta
               </span>
             </div>
-            <p className="tabular font-display text-2xl font-bold">{money(total)}</p>
+            <p className="tabular font-display text-2xl font-bold">
+              {money((caja.total_efectivo ?? 0) + (caja.total_yape ?? 0))}
+            </p>
             <p className="mt-1 text-xs text-white/40">
-              Desde {horaCorta(caja.abierta_en)} · inicial {money(caja.monto_inicial)}
+              Efectivo + Yape · desde {horaCorta(caja.abierta_en)}
             </p>
           </div>
 
@@ -540,6 +542,7 @@ export function Caja() {
             valor={money(caja.total_fiado)}
             color="text-amber-700"
             bg="bg-amber-50"
+            className="col-span-2 lg:col-span-1"
           />
         </div>
       ) : (
@@ -795,11 +798,11 @@ export function Caja() {
 
 // ─── Subcomponentes ────────────────────────────────────────────────────────────
 
-function KpiCaja({ icon: Icon, label, valor, color, bg }: {
-  icon: typeof DollarSign; label: string; valor: string; color: string; bg: string
+function KpiCaja({ icon: Icon, label, valor, color, bg, className = '' }: {
+  icon: typeof DollarSign; label: string; valor: string; color: string; bg: string; className?: string
 }) {
   return (
-    <div className="card p-4">
+    <div className={cx('card p-4', className)}>
       <div className={cx('mb-3 grid size-8 place-items-center rounded-lg', bg)}>
         <Icon className={cx('size-[18px]', color)} />
       </div>

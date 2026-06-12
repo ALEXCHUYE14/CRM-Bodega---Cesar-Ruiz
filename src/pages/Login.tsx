@@ -7,28 +7,18 @@ import { BRAND } from '@/config/brand'
 const WA_SOPORTE = `https://wa.me/${BRAND.whatsappSoporte}?text=Hola,%20tengo%20problemas%20para%20acceder%20al%20sistema%20de%20${encodeURIComponent(BRAND.nombre)}.`
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Columna izquierda — imagen de fondo (solo desktop).
-   Definida fuera del componente para que React no la recree en cada render.
+   Propiedades CSS de la columna izquierda (imagen de fondo).
+   Definidas fuera del componente para que React no las recree en cada render.
+   El layout (width/height/display) lo controla el CSS class .login-left-col.
 ───────────────────────────────────────────────────────────────────────────── */
-const leftColStyle: React.CSSProperties = {
+const leftColBgStyle: React.CSSProperties = {
   backgroundImage: "url('img/logo.jpeg')",
   backgroundSize: 'cover',
   backgroundPosition: 'center',
   backgroundRepeat: 'no-repeat',
-  width: '100%',
-  minHeight: '100vh',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'flex-end',
+  display: 'block',
   position: 'relative',
-}
-
-const overlayStyle: React.CSSProperties = {
-  position: 'absolute',
-  inset: 0,
-  background:
-    'linear-gradient(to top, rgba(14,14,13,0.88) 0%, rgba(14,14,13,0.25) 45%, rgba(14,14,13,0.06) 100%)',
+  overflow: 'hidden',
 }
 
 export function Login() {
@@ -50,23 +40,34 @@ export function Login() {
 
   return (
     /*
-     * Layout Mobile-First:
-     *   — Móvil (<1024px): columna izquierda oculta, formulario a 100% ancho/alto
-     *   — Desktop (≥1024px): pantalla dividida 50/50
+     * Layout Split-Screen:
+     *   Desktop (≥769px) → columna izquierda 50vw (imagen) + columna derecha 50vw (formulario)
+     *   Móvil   (≤768px) → columna izquierda display:none, formulario ocupa 100%
      */
     <div style={{ display: 'flex', minHeight: '100dvh', flexDirection: 'row' }}>
 
-      {/* ════════════ COLUMNA IZQUIERDA — imagen (solo desktop) ════════════ */}
-      <div aria-hidden="true" className="login-left-col" style={leftColStyle}>
-        <div style={overlayStyle} />
+      {/* ════════════════════════════════════════════════════════════════════════
+          COLUMNA IZQUIERDA — Imagen de fondo completa (solo desktop)
+          Layout controlado por .login-left-col; background por leftColBgStyle.
+          display:block con position:relative para contenido absolutamente posicionado.
+      ════════════════════════════════════════════════════════════════════════ */}
+      <div aria-hidden="true" className="login-left-col" style={leftColBgStyle}>
+        {/* Gradient overlay para contraste del texto */}
         <div style={{
-          position: 'relative',
-          zIndex: 1,
+          position: 'absolute',
+          inset: 0,
+          background: 'linear-gradient(to top, rgba(14,14,13,0.92) 0%, rgba(14,14,13,0.22) 55%, rgba(14,14,13,0.04) 100%)',
+        }} />
+        {/* Texto de marca en la parte inferior */}
+        <div style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          padding: '60px 40px',
           textAlign: 'center',
           color: '#ffffff',
-          paddingBottom: '60px',
-          paddingLeft: '40px',
-          paddingRight: '40px',
+          zIndex: 1,
         }}>
           <h2 style={{
             fontFamily: '"Bricolage Grotesque", sans-serif',
@@ -90,38 +91,42 @@ export function Login() {
       </div>
 
       {/*
-       * Media query estricta:
-       *   max-width: 768px  → columna izquierda display:none (no consume espacio)
-       *   min-width: 1024px → columna izquierda display:flex, ocupa 50%
+       * ── Media queries ───────────────────────────────────────────────────────
+       *  .login-left-col:
+       *    Móvil   (≤768px) → display:none !important  — no ocupa nada de espacio
+       *    Desktop (≥769px) → display:block !important, width:50vw, height:100vh
+       *
+       *  .login-input:
+       *    font-size ≥16px para prevenir zoom automático en Safari/iOS al enfocar
        */}
       <style>{`
-        .login-left-col { display: none !important; }
-        @media (min-width: 1024px) {
+        .login-left-col {
+          display: none !important;
+        }
+        @media (min-width: 769px) {
           .login-left-col {
-            display: flex !important;
-            flex: 1;
+            display: block !important;
+            width: 50vw;
+            min-width: 50vw;
             flex-shrink: 0;
-            max-width: 50%;
+            height: 100vh;
           }
         }
-        /* Prevenir zoom automático en iOS Safari al enfocar inputs */
-        @media (max-width: 768px) {
-          .login-input { font-size: 16px !important; }
-        }
+        .login-input { font-size: 16px !important; }
       `}</style>
 
-      {/* ════════════ COLUMNA DERECHA — formulario (siempre visible) ════════════
-          Estructura en dos zonas:
-            1. Zona de formulario (flex-1, scroll si la pantalla es muy pequeña)
-            2. Zona de soporte WhatsApp (fija al fondo, siempre visible)
+      {/* ════════════════════════════════════════════════════════════════════════
+          COLUMNA DERECHA — Formulario de acceso (siempre visible)
+          Dos zonas:
+            1. Zona de formulario (flex-1, centrado verticalmente, scroll si falta espacio)
+            2. Zona de soporte WhatsApp (altura fija, siempre visible al fondo)
       ════════════════════════════════════════════════════════════════════════ */}
       <div style={{
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
         minHeight: '100dvh',
-        backgroundColor: '#ffffff',
-        overflowY: 'auto',
+        backgroundColor: '#f8f9fa',
       }}>
 
         {/* ── Zona 1: formulario ── */}
@@ -132,14 +137,44 @@ export function Login() {
           alignItems: 'center',
           justifyContent: 'center',
           padding: '2rem 1.5rem 1rem',
+          overflowY: 'auto',
+          minHeight: 0,
         }}>
-          <div style={{ width: '100%', maxWidth: '360px' }}>
+
+          {/* Tarjeta profesional del formulario */}
+          <div style={{
+            width: '100%',
+            maxWidth: '400px',
+            backgroundColor: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '12px',
+            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.05)',
+            padding: '2rem',
+          }}>
+
+            {/* Logo interno superior — centrado con esquinas redondeadas */}
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+              <img
+                src="img/logo.jpeg"
+                alt={BRAND.nombre}
+                style={{
+                  maxHeight: '80px',
+                  width: 'auto',
+                  borderRadius: '12px',
+                  display: 'inline-block',
+                  objectFit: 'cover',
+                }}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                }}
+              />
+            </div>
 
             {/* Encabezado de marca */}
-            <div style={{ marginBottom: '2rem' }}>
+            <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
               <h1 style={{
                 fontFamily: '"Bricolage Grotesque", sans-serif',
-                fontSize: '1.75rem',
+                fontSize: '1.6rem',
                 fontWeight: 800,
                 letterSpacing: '-0.3px',
                 color: '#0e0e0d',
@@ -208,10 +243,11 @@ export function Login() {
 
         {/* ── Zona 2: soporte WhatsApp — siempre visible al fondo ── */}
         <div style={{
-          borderTop: '1px solid #f0f0ef',
+          flexShrink: 0,
+          borderTop: '1px solid #e2e8f0',
           padding: '1.25rem 1.5rem',
           textAlign: 'center',
-          backgroundColor: '#ffffff',
+          backgroundColor: '#f8f9fa',
         }}>
           <p style={{ margin: '0 0 10px', fontSize: '0.75rem', color: '#aaa' }}>
             ¿Problemas para acceder?
