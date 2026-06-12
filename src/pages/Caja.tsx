@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase'
 import { useCajaCtx } from '@/context/CajaContext'
 import { useCaja } from '@/hooks/useCaja'
 import { useAuth } from '@/context/AuthContext'
+import { BRAND } from '@/config/brand'
 import { Button, Card, Badge } from '@/components/ui/Button'
 import { Sheet } from '@/components/ui/Sheet'
 import { useToast } from '@/components/ui/Toast'
@@ -25,11 +26,13 @@ import type { CajaRegistro } from '@/types/database'
 // ─── Generador de reporte PDF de cierre de caja ───────────────────────────────
 
 async function generarReportePDF(cajaData: CajaRegistro, montoRealContado: number): Promise<void> {
-  // Abrimos la ventana ANTES del primer await para evitar bloqueo de popup
+  // Abrimos la ventana ANTES del primer await (requisito del navegador para no bloquear popup)
   const w = window.open('', '_blank', 'width=960,height=780,menubar=no,toolbar=no')
   if (!w) {
-    console.warn('El navegador bloqueó el popup para el PDF. Habilita los popups para este sitio.')
-    return
+    // Si la ventana fue bloqueada lanzamos un error para detener el flujo de cierre
+    throw new Error(
+      'El navegador bloqueó la ventana del PDF. Habilita los popups para este sitio e intenta nuevamente.',
+    )
   }
 
   // Mostramos estado de carga inmediatamente
@@ -386,6 +389,24 @@ export function Caja() {
 
   const RAPIDOS_INICIAL = [50, 100, 150, 200, 300, 500]
 
+  // Muestra el nombre correcto: admin → brand operador, cajero → su primer nombre
+  const nombreDisplay =
+    perfil?.rol === 'administrador'
+      ? BRAND.operador
+      : (perfil?.nombre?.split(' ')[0] ?? 'Cajero')
+
+  /**
+   * Limpia el estado local y el almacenamiento del turno.
+   * El estado reactivo del contexto (caja → null) ya fue
+   * reseteado por cerrar(). Esta función complementa eso
+   * borrando la clave de localStorage y reseteando inputs.
+   */
+  function resetearEstadoDiario() {
+    localStorage.removeItem('bodeguita_caja_activa_id')
+    setMontoReal('')
+    setMontoInicial('')
+  }
+
   async function confirmarApertura() {
     const monto = parseFloat(montoInicial) || 0
     if (monto < 0) {
@@ -415,21 +436,29 @@ export function Caja() {
 
     setProcesando(true)
     try {
-      // 1. Genera el reporte PDF antes de cerrar (los datos siguen en la BD)
+      // PASO 1 — Compilar y generar PDF
+      // Si el PDF falla (popup bloqueado u otro error) se lanza excepción y
+      // el flujo se detiene aquí: los datos quedan intactos en la BD.
       setGenerandoPDF(true)
       try {
         await generarReportePDF(caja, monto)
       } catch (pdfErr) {
-        // El PDF es best-effort: si falla no bloqueamos el cierre
-        console.error('Error generando PDF:', pdfErr)
-        toast.error('No se pudo generar el PDF, pero se procederá a cerrar la caja.')
+        const msg = pdfErr instanceof Error ? pdfErr.message : 'Error desconocido'
+        toast.error(`PDF no generado — cierre cancelado para proteger los datos. (${msg})`)
+        return
       } finally {
         setGenerandoPDF(false)
       }
 
-      // 2. Cierra la caja en la base de datos
+      // PASO 2 — Actualizar estado de caja en la base de datos
       const r = await cerrar(monto)
       setResumen(r)
+
+      // PASO 3 — Reset a cero: limpia estado local y localStorage del turno
+      resetearEstadoDiario()
+
+      // PASO 4 (signOut + redirect) se ejecuta desde el modal de resumen
+      // para que el usuario pueda revisar el arqueo antes de salir.
       setCerrarOpen(false)
       setResumenOpen(true)
       toast.exito('Caja cerrada correctamente. Reporte PDF generado.')
@@ -454,7 +483,7 @@ export function Caja() {
         <div>
           <h1 className="font-display text-2xl font-bold text-ink-900">Control de caja</h1>
           <p className="text-sm text-ink-400">
-            {perfil?.nombre} · {new Date().toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' })}
+            {nombreDisplay} · {new Date().toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
         </div>
         {!caja ? (
