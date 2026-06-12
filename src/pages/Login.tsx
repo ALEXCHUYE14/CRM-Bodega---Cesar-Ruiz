@@ -2,9 +2,35 @@ import { useState, type FormEvent } from 'react'
 import { Eye, EyeOff, LogIn, MessageCircle } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/Button'
+import { BRAND } from '@/config/brand'
 
-const WA_SOPORTE =
-  'https://wa.me/51924996961?text=Hola,%20tengo%20problemas%20para%20acceder%20al%20sistema%20de%20Bodeguita%20Juli.'
+const WA_SOPORTE = `https://wa.me/${BRAND.whatsappSoporte}?text=Hola,%20tengo%20problemas%20para%20acceder%20al%20sistema%20de%20${encodeURIComponent(BRAND.nombre)}.`
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Los estilos de la columna izquierda se definen aquí fuera del componente
+   para que React no los recree en cada render y para garantizar que el
+   background-image CSS se aplique con las propiedades exactas requeridas.
+───────────────────────────────────────────────────────────────────────────── */
+const leftColStyle: React.CSSProperties = {
+  backgroundImage: "url('img/logo.jpeg')",
+  backgroundSize: 'cover',
+  backgroundPosition: 'center',
+  backgroundRepeat: 'no-repeat',
+  width: '100%',
+  minHeight: '100vh',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'flex-end',
+  position: 'relative',
+}
+
+const overlayStyle: React.CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  background:
+    'linear-gradient(to top, rgba(14,14,13,0.88) 0%, rgba(14,14,13,0.25) 45%, rgba(14,14,13,0.06) 100%)',
+}
 
 export function Login() {
   const { signIn } = useAuth()
@@ -24,70 +50,158 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-dvh lg:grid lg:grid-cols-2">
-
-      {/* ══════════════════════════════════════════
-          COLUMNA IZQUIERDA — Branding (solo desktop)
-          ══════════════════════════════════════════ */}
+    /*
+     * Layout de dos columnas — Desktop: flex row (50/50)
+     *                        — Móvil:   flex column (solo columna derecha visible)
+     * Usamos flexbox en lugar de CSS Grid para que cada columna controle
+     * su propio min-height sin depender del "stretch" del grid.
+     */
+    <div
+      style={{
+        display: 'flex',
+        minHeight: '100dvh',
+        flexDirection: 'row',
+      }}
+    >
+      {/* ════════════════════════════════════════════════════════════════
+          COLUMNA IZQUIERDA — Imagen de fondo de la tienda (solo Desktop)
+          Oculta en móvil con media query.
+          ════════════════════════════════════════════════════════════════ */}
       <div
-        className="relative hidden lg:flex lg:flex-col lg:items-center lg:justify-end lg:overflow-hidden lg:pb-16"
-        style={{
-          backgroundImage: 'url(/img/logo.jpeg)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
+        aria-hidden="true"
+        className="login-left-col"
+        style={leftColStyle}
       >
-        {/* Gradiente inferior para legibilidad del texto */}
-        <div className="absolute inset-0 bg-gradient-to-t from-ink-900/90 via-ink-900/30 to-transparent" />
+        {/* Gradiente overlay */}
+        <div style={overlayStyle} />
 
-        {/* Texto de marca sobre la imagen */}
-        <div className="relative z-10 px-10 text-center text-white">
-          <h2 className="font-display text-4xl font-black tracking-tight drop-shadow-lg">
-            Bodeguita Juli
+        {/* Texto de marca posicionado sobre el overlay */}
+        <div
+          style={{
+            position: 'relative',
+            zIndex: 1,
+            textAlign: 'center',
+            color: '#ffffff',
+            paddingBottom: '60px',
+            paddingLeft: '40px',
+            paddingRight: '40px',
+          }}
+        >
+          <h2
+            style={{
+              fontFamily: '"Bricolage Grotesque", sans-serif',
+              fontSize: '2.4rem',
+              fontWeight: 900,
+              letterSpacing: '-0.5px',
+              lineHeight: 1.2,
+              textShadow: '0 2px 12px rgba(0,0,0,0.4)',
+              margin: 0,
+            }}
+          >
+            {BRAND.nombre}
           </h2>
-          <p className="mt-2 text-base text-white/70">
+          <p
+            style={{
+              marginTop: '10px',
+              fontSize: '1rem',
+              opacity: 0.7,
+              fontWeight: 500,
+            }}
+          >
             Sistema de Gestión y Punto de Venta
           </p>
-          <div className="mx-auto mt-6 h-px w-16 bg-white/30" />
-          <p className="mt-4 text-sm text-white/50 italic">
+          <div
+            style={{
+              width: '48px',
+              height: '1px',
+              background: 'rgba(255,255,255,0.3)',
+              margin: '20px auto',
+            }}
+          />
+          <p style={{ fontSize: '0.85rem', opacity: 0.5, fontStyle: 'italic' }}>
             "Cada venta cuenta, cada cliente importa."
           </p>
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════
-          COLUMNA DERECHA — Formulario de acceso
-          ══════════════════════════════════════════ */}
-      <div className="flex min-h-dvh flex-col items-center justify-center bg-white px-6 py-12 lg:min-h-screen lg:px-12">
-        <div className="w-full max-w-sm">
+      {/* Media query para ocultar la columna izquierda en móvil */}
+      <style>{`
+        .login-left-col {
+          display: none;
+        }
+        @media (min-width: 1024px) {
+          .login-left-col {
+            display: flex;
+            flex: 1;
+            flex-shrink: 0;
+            max-width: 50%;
+          }
+        }
+      `}</style>
 
-          {/* Encabezado de la sección de formulario */}
-          <div className="mb-8">
-            {/* Logo pequeño — solo móvil */}
-            <div className="mb-5 flex justify-center lg:hidden">
-              <div className="size-16 overflow-hidden rounded-2xl shadow-md ring-1 ring-ink-100">
-                <img
-                  src="/img/logo.jpeg"
-                  alt="Bodeguita Juli"
-                  className="h-full w-full object-cover"
-                  onError={(e) => {
-                    const el = e.target as HTMLImageElement
-                    el.style.display = 'none'
-                    el.parentElement!.style.background = '#0e0e0d'
-                  }}
-                />
-              </div>
+      {/* ════════════════════════════════════════════════════════════════
+          COLUMNA DERECHA — Formulario de login
+          Ocupa 100% en móvil, 50% en desktop.
+          ════════════════════════════════════════════════════════════════ */}
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100dvh',
+          backgroundColor: '#ffffff',
+          padding: '3rem 1.5rem',
+        }}
+      >
+        <div style={{ width: '100%', maxWidth: '360px' }}>
+
+          {/* Logo pequeño — solo visible en móvil */}
+          <div className="mb-6 flex justify-center lg:hidden">
+            <div
+              style={{
+                width: '72px',
+                height: '72px',
+                borderRadius: '18px',
+                overflow: 'hidden',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                border: '1px solid #e5e5e4',
+              }}
+            >
+              <img
+                src="img/logo.jpeg"
+                alt={BRAND.nombre}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                onError={(e) => {
+                  const el = e.target as HTMLImageElement
+                  el.parentElement!.style.background = '#0e0e0d'
+                  el.style.display = 'none'
+                }}
+              />
             </div>
+          </div>
 
-            <h1 className="font-display text-2xl font-bold tracking-tight text-ink-900 lg:text-3xl">
-              Bodeguita Juli
+          {/* Encabezado del formulario */}
+          <div className="mb-8">
+            <h1
+              style={{
+                fontFamily: '"Bricolage Grotesque", sans-serif',
+                fontSize: '1.75rem',
+                fontWeight: 800,
+                letterSpacing: '-0.3px',
+                color: '#0e0e0d',
+                margin: '0 0 6px 0',
+              }}
+            >
+              {BRAND.nombre}
             </h1>
-            <p className="mt-1.5 text-sm text-ink-400">
+            <p style={{ fontSize: '0.875rem', color: '#888', margin: 0 }}>
               Ingresa tus credenciales para continuar
             </p>
           </div>
 
-          {/* Formulario */}
+          {/* Formulario de acceso */}
           <form onSubmit={onSubmit} className="space-y-4">
             <div>
               <label className="label mb-1.5 block">Correo electrónico</label>
@@ -131,42 +245,63 @@ export function Login() {
               </div>
             )}
 
-            <Button
-              type="submit"
-              size="lg"
-              loading={cargando}
-              className="w-full"
-            >
+            <Button type="submit" size="lg" loading={cargando} className="w-full">
               <LogIn className="size-4" />
               Ingresar al sistema
             </Button>
           </form>
 
-          {/* Divider */}
+          {/* Separador */}
           <div className="my-6 flex items-center gap-3">
             <div className="h-px flex-1 bg-ink-100" />
-            <span className="text-xs text-ink-300">acceso autorizado</span>
+            <span className="text-[0.7rem] font-medium text-ink-300 uppercase tracking-wide">
+              acceso autorizado
+            </span>
             <div className="h-px flex-1 bg-ink-100" />
           </div>
 
           {/* Enlace de soporte WhatsApp */}
-          <div className="text-center">
-            <p className="text-xs text-ink-400">
-              ¿Problemas para acceder?
-            </p>
+          <div style={{ textAlign: 'center' }}>
+            <p className="mb-2 text-xs text-ink-400">¿Problemas para acceder?</p>
             <a
               href={WA_SOPORTE}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-xs font-semibold text-green-700 transition-colors hover:bg-green-100"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 20px',
+                borderRadius: '10px',
+                border: '1px solid #bbf7d0',
+                backgroundColor: '#f0fdf4',
+                color: '#15803d',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                textDecoration: 'none',
+                transition: 'background-color 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                ;(e.currentTarget as HTMLAnchorElement).style.backgroundColor = '#dcfce7'
+              }}
+              onMouseLeave={(e) => {
+                ;(e.currentTarget as HTMLAnchorElement).style.backgroundColor = '#f0fdf4'
+              }}
             >
-              <MessageCircle className="size-3.5" />
+              <MessageCircle size={14} />
               Contactar soporte por WhatsApp
             </a>
           </div>
 
-          <p className="mt-6 text-center text-[0.7rem] text-ink-300">
-            Acceso exclusivo para personal autorizado · Bodeguita Juli
+          <p
+            style={{
+              marginTop: '24px',
+              textAlign: 'center',
+              fontSize: '0.7rem',
+              color: '#bbb',
+            }}
+          >
+            Acceso exclusivo para personal autorizado · {BRAND.nombre}
           </p>
         </div>
       </div>

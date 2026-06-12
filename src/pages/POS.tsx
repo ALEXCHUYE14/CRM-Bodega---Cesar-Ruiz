@@ -25,6 +25,7 @@ import { CameraScanner } from '@/components/pos/CameraScanner'
 import { PaymentModal } from '@/components/pos/PaymentModal'
 import { Receipt } from '@/components/pos/Receipt'
 import { money, cx } from '@/utils/format'
+import { BRAND } from '@/config/brand'
 import { beepExito, beepError } from '@/utils/beep'
 import type { ItemCarrito, MetodoPago, ModalidadVenta, Producto, Venta } from '@/types/database'
 
@@ -32,6 +33,7 @@ export function POS() {
   const { productos, categorias, cargando } = useProductos()
   const { clientes } = useClientes()
   const { perfil, esAdmin } = useAuth()
+  const nombreDisplay = perfil?.rol === 'administrador' ? BRAND.operador : (perfil?.nombre?.split(' ')[0] ?? 'Cajero')
   const { caja, cargando: cajaCargando, abrir: abrirCaja, sumarVenta } = useCajaCtx()
   const toast = useToast()
   const carrito = useCarrito()
@@ -227,7 +229,7 @@ export function POS() {
           <div>
             <h1 className="font-display text-2xl font-bold text-ink-900">Punto de venta</h1>
             <p className="text-sm text-ink-400">
-              Hola, {perfil?.nombre?.split(' ')[0] ?? 'Cajero'} · escanea o busca
+              Hola, {nombreDisplay} · escanea o busca
             </p>
           </div>
           <Button

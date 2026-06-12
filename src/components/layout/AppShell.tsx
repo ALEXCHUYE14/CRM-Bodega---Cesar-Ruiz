@@ -3,12 +3,20 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { Store, LogOut } from 'lucide-react'
 import { NAV } from './nav'
 import { useAuth } from '@/context/AuthContext'
+import { BRAND } from '@/config/brand'
 import { cx } from '@/utils/format'
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { perfil, esAdmin, signOut } = useAuth()
   const navigate = useNavigate()
   const items = NAV.filter((i) => !i.soloAdmin || esAdmin)
+
+  // El admin muestra el operador de marca ("Juli"); los cajeros muestran su primer nombre
+  const nombreDisplay =
+    perfil?.rol === 'administrador'
+      ? BRAND.operador
+      : (perfil?.nombre?.split(' ')[0] ?? 'Cajero')
+  const inicialDisplay = nombreDisplay.charAt(0).toUpperCase()
 
   async function salir() {
     await signOut()
@@ -53,10 +61,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="border-t border-ink-100 p-3">
           <div className="flex items-center gap-3 rounded-xl px-3 py-2">
             <div className="grid size-9 place-items-center rounded-full bg-accent-100 font-display text-sm font-bold text-accent-700">
-              {(perfil?.nombre ?? 'U').charAt(0).toUpperCase()}
+              {inicialDisplay}
             </div>
             <div className="min-w-0 flex-1 leading-tight">
-              <p className="truncate text-sm font-semibold text-ink-900">{perfil?.nombre}</p>
+              <p className="truncate text-sm font-semibold text-ink-900">{nombreDisplay}</p>
               <p className="text-[0.7rem] font-medium capitalize text-ink-400">{perfil?.rol}</p>
             </div>
             <button

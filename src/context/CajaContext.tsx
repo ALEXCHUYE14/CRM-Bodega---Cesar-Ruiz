@@ -5,6 +5,7 @@ import {
 } from 'react'
 import { useCaja, type ResumenCierre } from '@/hooks/useCaja'
 import { useAuth } from '@/context/AuthContext'
+import { BRAND } from '@/config/brand'
 import type { CajaRegistro } from '@/types/database'
 
 interface CajaState {
@@ -35,7 +36,9 @@ export function CajaProvider({ children }: { children: ReactNode }) {
   } = useCaja(cajeroId)
 
   async function abrir(montoInicial: number): Promise<CajaRegistro> {
-    const nombre = perfil?.nombre ?? 'Cajero'
+    const nombre = perfil?.rol === 'administrador'
+      ? BRAND.operador
+      : (perfil?.nombre?.split(' ')[0] ?? 'Cajero')
     return abrirHook(montoInicial, nombre)
   }
 
