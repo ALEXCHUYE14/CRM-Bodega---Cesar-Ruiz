@@ -1,24 +1,29 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 
-const url = import.meta.env.VITE_SUPABASE_URL as string
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+const url: string = import.meta.env.VITE_SUPABASE_URL || ''
+const anonKey: string = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
 if (!url || !anonKey) {
-  // Mensaje claro en consola si faltan credenciales (error frecuente al desplegar)
   console.error(
-    '[Cesar Ruiz POS] Faltan VITE_SUPABASE_URL o VITE_SUPABASE_ANON_KEY. ' +
-      'Copia .env.example a .env y completa tus credenciales de Supabase.',
+    '[Bodeguita Juli] Faltan VITE_SUPABASE_URL o VITE_SUPABASE_ANON_KEY. ' +
+      'Configura estas variables en el panel de Vercel (Settings → Environment Variables).',
   )
 }
 
-export const supabase = createClient<Database>(url, anonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
+// Fallback seguro: si faltan las vars, se usa un cliente con URL inválida que
+// fallará en las llamadas de red (error visible) en lugar de crashear el módulo.
+export const supabase = createClient<Database>(
+  url || 'https://placeholder.invalid',
+  anonKey || 'placeholder',
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+    realtime: {
+      params: { eventsPerSecond: 10 },
+    },
   },
-  realtime: {
-    params: { eventsPerSecond: 10 },
-  },
-})
+)

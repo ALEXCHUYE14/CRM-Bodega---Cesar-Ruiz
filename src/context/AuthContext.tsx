@@ -42,6 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session)
       if (data.session?.user) await cargarPerfil(data.session.user.id)
       setCargando(false)
+    }).catch(() => {
+      if (activo) setCargando(false)
     })
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_e, s) => {
