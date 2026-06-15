@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/context/AuthContext'
+import { useCajaCtx } from '@/context/CajaContext'
 import { Card, Badge, Button, Spinner } from '@/components/ui/Button'
 import { Sheet } from '@/components/ui/Sheet'
 import { useToast } from '@/components/ui/Toast'
@@ -31,6 +32,7 @@ const TONO_PAGO: Record<MetodoPago, 'neutral' | 'success' | 'info' | 'warning'> 
 
 export function Ventas() {
   const { esAdmin } = useAuth()
+  const { caja } = useCajaCtx()
   const toast = useToast()
 
   const hoy = ymd(new Date())
@@ -89,11 +91,39 @@ export function Ventas() {
     )
   }, [ventas, q])
 
+  // ── Resumen con integración de caja activa ────────────────────────────────
+  // Cuando el filtro apunta a "hoy" y hay una caja abierta hoy, se usan los
+  // totales EN VIVO del contexto de caja. Esto garantiza que cualquier venta
+  // recién registrada en el POS aparezca aquí sin necesidad de recargar.
+  // Para cualquier otro rango de fechas, se usa la suma de la consulta a BD.
   const resumen = useMemo(() => {
-    const validas = filtradas.filter((v) => !v.anulada)
-    const total = validas.reduce((s, v) => s + v.total, 0)
-    return { total, count: validas.length, anuladas: filtradas.length - validas.length }
-  }, [filtradas])
+    const validas = filtradas.filter((v: Venta) => !v.anulada)
+    const totalDB = validas.reduce((s: number, v: Venta) => s + Number(v.total), 0)
+
+    // La caja es "de hoy" si fue abierta en la fecha actual
+    const cajaEsDeHoy = caja !== null && caja.abierta_en.slice(0, 10) === hoy
+    // Solo sincronizamos con caja cuando el filtro está exactamente en hoy
+    const usandoCaja = cajaEsDeHoy && desde === hoy && hasta === hoy
+
+    // Conversión explícita a Number para evitar concatenación de texto o NaN
+    const efectivoCaja = usandoCaja && caja ? Number(caja.total_efectivo) : null
+    const yapeCaja     = usandoCaja && caja ? Number(caja.total_yape)     : null
+    const fiadoCaja    = usandoCaja && caja ? Number(caja.total_fiado)    : null
+
+    const total = usandoCaja && efectivoCaja !== null && yapeCaja !== null && fiadoCaja !== null
+      ? efectivoCaja + yapeCaja + fiadoCaja
+      : totalDB
+
+    return {
+      total,
+      count: validas.length,
+      anuladas: filtradas.length - validas.length,
+      usandoCaja,
+      efectivoCaja,
+      yapeCaja,
+      fiadoCaja,
+    }
+  }, [filtradas, caja, hoy, desde, hasta])
 
   const filtrosActivos =
     (metodo ? 1 : 0) + (cajeroId ? 1 : 0) + (desde !== hoy || hasta !== hoy ? 1 : 0)
@@ -127,20 +157,63 @@ export function Ventas() {
         </Button>
       </div>
 
-      {/* Resumen del periodo */}
+      {/* ── Métricas del periodo ── */}
       <div className="grid grid-cols-3 gap-3">
+
+        {/* Tarjeta "Recaudado" — sincronizada con caja activa cuando filtro = hoy */}
         <Card className="p-4">
-          <p className="label">Recaudado</p>
+          <div className="flex items-center justify-between mb-0.5">
+            <p className="label">Recaudado</p>
+            {resumen.usandoCaja && (
+              <span className="flex items-center gap-1 text-[0.65rem] font-semibold uppercase tracking-wider text-accent-600">
+                <span className="relative flex size-1.5 shrink-0">
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent-500 opacity-75" />
+                  <span className="relative inline-flex size-1.5 rounded-full bg-accent-500" />
+                </span>
+                En vivo
+              </span>
+            )}
+          </div>
           <p className="mt-1 font-display text-xl font-bold tabular text-ink-900">
             {money(resumen.total)}
           </p>
+          {/* Desglose por método cuando datos provienen de caja activa */}
+          {resumen.usandoCaja &&
+            resumen.efectivoCaja !== null &&
+            resumen.yapeCaja !== null &&
+            resumen.fiadoCaja !== null && (
+            <div className="mt-2 space-y-0.5 border-t border-ink-100 pt-2">
+              <div className="flex justify-between text-[0.7rem] text-ink-400">
+                <span>Efectivo</span>
+                <span className="tabular font-medium text-accent-700">
+                  {money(resumen.efectivoCaja)}
+                </span>
+              </div>
+              <div className="flex justify-between text-[0.7rem] text-ink-400">
+                <span>Yape</span>
+                <span className="tabular font-medium text-blue-600">
+                  {money(resumen.yapeCaja)}
+                </span>
+              </div>
+              {resumen.fiadoCaja > 0 && (
+                <div className="flex justify-between text-[0.7rem] text-ink-400">
+                  <span>Fiado</span>
+                  <span className="tabular font-medium text-amber-600">
+                    {money(resumen.fiadoCaja)}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </Card>
+
         <Card className="p-4">
           <p className="label">Transacciones</p>
           <p className="mt-1 font-display text-xl font-bold tabular text-ink-900">
             {resumen.count}
           </p>
         </Card>
+
         <Card className="p-4">
           <p className="label">Anuladas</p>
           <p className="mt-1 font-display text-xl font-bold tabular text-ink-900">
@@ -208,7 +281,7 @@ export function Ventas() {
                       <Badge tone={TONO_PAGO[v.metodo]}>{ETIQUETA_PAGO[v.metodo]}</Badge>
                     </td>
                     <td className="px-4 py-3 text-right font-semibold tabular text-ink-900">
-                      {money(v.total)}
+                      {money(Number(v.total))}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Button variant="ghost" size="sm" onClick={() => setTicket(v)}>
@@ -244,7 +317,7 @@ export function Ventas() {
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="font-display font-bold tabular text-ink-900">
-                      {money(v.total)}
+                      {money(Number(v.total))}
                     </p>
                     <span className="inline-flex items-center gap-1 text-xs text-accent-600">
                       <Printer className="size-3.5" /> Ticket
@@ -383,7 +456,7 @@ export function Ventas() {
   )
 }
 
-/* ---- Reimpresion de ticket desde historial ---- */
+/* ─── Reimpresion de ticket desde historial ───────────────────────────────── */
 function TicketReprint({
   venta,
   esAdmin,
@@ -487,22 +560,22 @@ function TicketReprint({
                 <span className="min-w-0 truncate text-ink-700">
                   {d.cantidad}x {d.producto_nombre}
                 </span>
-                <span className="tabular shrink-0 text-ink-900">{money(d.subtotal)}</span>
+                <span className="tabular shrink-0 text-ink-900">{money(Number(d.subtotal))}</span>
               </div>
             ))}
           </div>
         )}
 
         <div className="space-y-1 pt-2.5 text-ink-600">
-          <Fila k="Subtotal" v={money(venta.subtotal)} />
-          {venta.descuento > 0 && <Fila k="Descuento" v={'- ' + money(venta.descuento)} />}
-          <Fila k="IGV (18%)" v={money(venta.igv)} />
+          <Fila k="Subtotal" v={money(Number(venta.subtotal))} />
+          {Number(venta.descuento) > 0 && <Fila k="Descuento" v={'- ' + money(Number(venta.descuento))} />}
+          <Fila k="IGV (18%)" v={money(Number(venta.igv))} />
           <div className="flex justify-between border-t border-ink-200 pt-1.5 font-display text-base font-bold text-ink-900">
             <span>TOTAL</span>
-            <span className="tabular">{money(venta.total)}</span>
+            <span className="tabular">{money(Number(venta.total))}</span>
           </div>
-          <Fila k={ETIQUETA_PAGO[venta.metodo]} v={money(venta.pago_recibido)} />
-          {venta.vuelto > 0 && <Fila k="Vuelto" v={money(venta.vuelto)} />}
+          <Fila k={ETIQUETA_PAGO[venta.metodo]} v={money(Number(venta.pago_recibido))} />
+          {Number(venta.vuelto) > 0 && <Fila k="Vuelto" v={money(Number(venta.vuelto))} />}
         </div>
         <p className="mt-3 text-center text-xs text-ink-400">¡Gracias por su compra!</p>
       </div>
