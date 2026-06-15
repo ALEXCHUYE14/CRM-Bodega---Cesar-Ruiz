@@ -62,15 +62,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   async function signIn(email: string, password: string) {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) {
-      const msg =
-        error.message === 'Invalid login credentials'
-          ? 'Correo o contrasena incorrectos.'
-          : error.message
-      return { error: msg }
+    const supabaseUrl: string = import.meta.env.VITE_SUPABASE_URL || ''
+    if (!supabaseUrl) {
+      return { error: 'Sistema no configurado. Contacta al administrador.' }
     }
-    return { error: null }
+
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Tiempo de espera agotado. Verifica tu conexión a internet.')), 12000),
+    )
+
+    try {
+      const { error } = await Promise.race([
+        supabase.auth.signInWithPassword({ email, password }),
+        timeout,
+      ])
+      if (error) {
+        const msg =
+          error.message === 'Invalid login credentials'
+            ? 'Correo o contraseña incorrectos.'
+            : error.message
+        return { error: msg }
+      }
+      return { error: null }
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : 'Error de conexión.' }
+    }
   }
 
   async function signOut() {

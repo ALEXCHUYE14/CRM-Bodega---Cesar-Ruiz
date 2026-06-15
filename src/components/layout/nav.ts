@@ -8,6 +8,7 @@ import {
   Trash2,
   Users,
   Vault,
+  Settings,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -28,4 +29,5 @@ export const NAV: NavItem[] = [
   { to: '/proveedores', label: 'Proveedores', icon: Truck, soloAdmin: true },
   { to: '/compras', label: 'Compras', icon: ShoppingBag, soloAdmin: true },
   { to: '/mermas', label: 'Mermas', icon: Trash2, soloAdmin: true },
+  { to: '/configuracion', label: 'Ajustes', icon: Settings, soloAdmin: true },
 ]

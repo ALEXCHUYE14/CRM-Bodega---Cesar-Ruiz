@@ -172,5 +172,5 @@ export function useCaja(cajeroId: string | null) {
     ? caja.monto_inicial + caja.total_efectivo
     : 0
 
-  return { caja, historial, cargando, abrir, cerrar, sumarVenta, total, recargar: cargar }
+  return { caja, historial, cargando, abrir, cerrar, sumarVenta, total, recargar: cargar, recargarHistorial: cargarHistorial }
 }

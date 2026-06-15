@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   DollarSign,
@@ -10,38 +10,36 @@ import {
   AlertTriangle,
   FileDown,
   LogOut,
+  Filter,
+  Trash2,
+  X,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useCajaCtx } from '@/context/CajaContext'
-import { useCaja } from '@/hooks/useCaja'
 import { useAuth } from '@/context/AuthContext'
 import { BRAND } from '@/config/brand'
 import { Button, Card, Badge } from '@/components/ui/Button'
 import { Sheet } from '@/components/ui/Sheet'
 import { useToast } from '@/components/ui/Toast'
-import { money, fechaHora, horaCorta, ETIQUETA_PAGO, cx } from '@/utils/format'
+import { money, fechaHora, horaCorta, ymd, ETIQUETA_PAGO, cx } from '@/utils/format'
 import type { ResumenCierre } from '@/hooks/useCaja'
 import type { CajaRegistro } from '@/types/database'
 
 // ─── Generador de reporte PDF de cierre de caja ───────────────────────────────
 
 async function generarReportePDF(cajaData: CajaRegistro, montoRealContado: number): Promise<void> {
-  // Abrimos la ventana ANTES del primer await (requisito del navegador para no bloquear popup)
   const w = window.open('', '_blank', 'width=960,height=780,menubar=no,toolbar=no')
   if (!w) {
-    // Si la ventana fue bloqueada lanzamos un error para detener el flujo de cierre
     throw new Error(
       'El navegador bloqueó la ventana del PDF. Habilita los popups para este sitio e intenta nuevamente.',
     )
   }
 
-  // Mostramos estado de carga inmediatamente
   w.document.write(
     '<html><body style="font-family:sans-serif;display:grid;place-items:center;min-height:100vh;background:#f8f8f7;"><p style="font-size:1.1rem;color:#666;">Generando reporte PDF...</p></body></html>',
   )
 
   try {
-    // Consulta las ventas vinculadas a esta caja
     const { data: ventasData, error } = await supabase
       .from('ventas')
       .select('*')
@@ -54,15 +52,9 @@ async function generarReportePDF(cajaData: CajaRegistro, montoRealContado: numbe
     const ventasValidas = ventas.filter((v) => !v.anulada)
     const ventasAnuladas = ventas.filter((v) => v.anulada)
 
-    const totalEfectivo = ventasValidas
-      .filter((v) => v.metodo === 'efectivo')
-      .reduce((s, v) => s + v.total, 0)
-    const totalYape = ventasValidas
-      .filter((v) => v.metodo === 'yape')
-      .reduce((s, v) => s + v.total, 0)
-    const totalFiado = ventasValidas
-      .filter((v) => v.metodo === 'fiado')
-      .reduce((s, v) => s + v.total, 0)
+    const totalEfectivo = ventasValidas.filter((v) => v.metodo === 'efectivo').reduce((s, v) => s + v.total, 0)
+    const totalYape = ventasValidas.filter((v) => v.metodo === 'yape').reduce((s, v) => s + v.total, 0)
+    const totalFiado = ventasValidas.filter((v) => v.metodo === 'fiado').reduce((s, v) => s + v.total, 0)
     const totalGeneral = ventasValidas.reduce((s, v) => s + v.total, 0)
 
     const esperadoEfectivo = cajaData.monto_inicial + cajaData.total_efectivo
@@ -94,161 +86,62 @@ async function generarReportePDF(cajaData: CajaRegistro, montoRealContado: numbe
 <html lang="es">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Cierre de Caja — Bodeguita Juli</title>
   <style>
     *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-
-    body {
-      font-family: 'Helvetica Neue', Arial, sans-serif;
-      font-size: 10pt;
-      color: #1a1a1a;
-      background: #fff;
-      padding: 18mm 16mm 20mm;
-    }
-
-    /* ── Encabezado ── */
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 2.5px solid #0e0e0d;
-      padding-bottom: 6mm;
-      margin-bottom: 8mm;
-    }
-    .header-left { display: flex; align-items: center; gap: 12px; }
-    .logo {
-      height: 54px;
-      width: auto;
-      border-radius: 8px;
-      object-fit: contain;
-    }
-    .store-name { font-size: 18pt; font-weight: 900; letter-spacing: -0.5px; color: #0e0e0d; line-height: 1.2; }
-    .store-sub { font-size: 8.5pt; color: #888; margin-top: 2px; }
-    .report-info { text-align: right; }
-    .report-title { font-size: 13pt; font-weight: 800; color: #0e0e0d; }
-    .report-meta { font-size: 8.5pt; color: #666; margin-top: 3px; line-height: 1.7; }
-
-    /* ── Secciones ── */
-    .section { margin-bottom: 8mm; }
-    .section-title {
-      font-size: 10.5pt;
-      font-weight: 800;
-      color: #0e0e0d;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      border-bottom: 1px solid #e5e5e5;
-      padding-bottom: 2.5mm;
-      margin-bottom: 4mm;
-    }
-
-    /* ── Tarjetas de sesión ── */
-    .info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4mm; }
-    .info-card {
-      background: #f8f8f7;
-      border: 1px solid #e5e5e5;
-      border-radius: 6px;
-      padding: 3.5mm;
-    }
-    .info-label { font-size: 7.5pt; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 1.5mm; }
-    .info-value { font-size: 10pt; font-weight: 700; color: #0e0e0d; }
-
-    /* ── Tabla de ventas ── */
-    table { width: 100%; border-collapse: collapse; font-size: 9pt; }
-    thead th {
-      background: #0e0e0d;
-      color: #fff;
-      padding: 3mm 4mm;
-      font-weight: 700;
-      text-align: left;
-      font-size: 8.5pt;
-      letter-spacing: 0.3px;
-    }
-    thead th.center { text-align: center; }
-    thead th.right { text-align: right; }
-    tbody tr:nth-child(even) { background: #fafafa; }
-    tbody tr:hover { background: #f0f0ef; }
-    tbody td { padding: 2.5mm 4mm; border-bottom: 1px solid #eee; vertical-align: middle; }
-    tbody td.center { text-align: center; }
-    tbody td.right { text-align: right; }
-    tbody td.money { font-weight: 700; }
-    tfoot td {
-      padding: 3mm 4mm;
-      font-weight: 800;
-      font-size: 10pt;
-      background: #f0f0ef;
-      border-top: 2px solid #0e0e0d;
-    }
-    tfoot td.right { text-align: right; color: #0e0e0d; }
-
-    /* ── Badges de método ── */
-    .badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 7.5pt; font-weight: 700; }
-    .badge-efectivo { background: #ecfdf5; color: #065f46; }
-    .badge-yape { background: #eff6ff; color: #1d4ed8; }
-    .badge-fiado { background: #fffbeb; color: #92400e; }
-
-    /* ── Resumen financiero ── */
-    .summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4mm; margin-bottom: 4mm; }
-    .summary-card {
-      border-radius: 8px;
-      padding: 4mm;
-      border: 1px solid;
-    }
-    .summary-card.efectivo { background: #ecfdf5; border-color: #a7f3d0; }
-    .summary-card.yape { background: #eff6ff; border-color: #bfdbfe; }
-    .summary-card.fiado { background: #fffbeb; border-color: #fde68a; }
-    .summary-label { font-size: 7.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.65; margin-bottom: 1.5mm; }
-    .summary-value { font-size: 13pt; font-weight: 900; }
-    .summary-card.efectivo .summary-value { color: #065f46; }
-    .summary-card.yape .summary-value { color: #1d4ed8; }
-    .summary-card.fiado .summary-value { color: #92400e; }
-
-    .total-card {
-      background: #0e0e0d;
-      color: #fff;
-      border-radius: 8px;
-      padding: 4mm 5mm;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 3mm;
-    }
-    .total-label { font-size: 9pt; font-weight: 700; opacity: 0.7; }
-    .total-value { font-size: 16pt; font-weight: 900; }
-
-    .balance-card {
-      border-radius: 8px;
-      padding: 4mm 5mm;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: ${diferenciaFondo};
-      border: 1.5px solid ${diferenciaBorde};
-    }
-    .balance-desc { font-size: 8.5pt; color: #666; }
-    .balance-desc b { color: #1a1a1a; }
-    .balance-value { font-size: 15pt; font-weight: 900; color: ${diferenciaColor}; }
-
-    /* ── Pie ── */
-    .footer {
-      margin-top: 10mm;
-      border-top: 1px solid #e5e5e5;
-      padding-top: 4mm;
-      text-align: center;
-      font-size: 8pt;
-      color: #aaa;
-      line-height: 1.7;
-    }
-
-    @page { size: A4; margin: 0; }
-    @media print {
-      body { padding: 14mm 13mm 16mm; }
-    }
+    body { font-family:'Helvetica Neue',Arial,sans-serif; font-size:10pt; color:#1a1a1a; background:#fff; padding:18mm 16mm 20mm; }
+    .header { display:flex; align-items:center; justify-content:space-between; border-bottom:2.5px solid #0e0e0d; padding-bottom:6mm; margin-bottom:8mm; }
+    .header-left { display:flex; align-items:center; gap:12px; }
+    .logo { height:54px; width:auto; border-radius:8px; object-fit:contain; }
+    .store-name { font-size:18pt; font-weight:900; letter-spacing:-0.5px; color:#0e0e0d; line-height:1.2; }
+    .store-sub { font-size:8.5pt; color:#888; margin-top:2px; }
+    .report-info { text-align:right; }
+    .report-title { font-size:13pt; font-weight:800; color:#0e0e0d; }
+    .report-meta { font-size:8.5pt; color:#666; margin-top:3px; line-height:1.7; }
+    .section { margin-bottom:8mm; }
+    .section-title { font-size:10.5pt; font-weight:800; color:#0e0e0d; text-transform:uppercase; letter-spacing:0.6px; border-bottom:1px solid #e5e5e5; padding-bottom:2.5mm; margin-bottom:4mm; }
+    .info-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:4mm; }
+    .info-card { background:#f8f8f7; border:1px solid #e5e5e5; border-radius:6px; padding:3.5mm; }
+    .info-label { font-size:7.5pt; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:1.5mm; }
+    .info-value { font-size:10pt; font-weight:700; color:#0e0e0d; }
+    table { width:100%; border-collapse:collapse; font-size:9pt; }
+    thead th { background:#0e0e0d; color:#fff; padding:3mm 4mm; font-weight:700; text-align:left; font-size:8.5pt; letter-spacing:0.3px; }
+    thead th.center { text-align:center; }
+    thead th.right { text-align:right; }
+    tbody tr:nth-child(even) { background:#fafafa; }
+    tbody td { padding:2.5mm 4mm; border-bottom:1px solid #eee; vertical-align:middle; }
+    tbody td.center { text-align:center; }
+    tbody td.right { text-align:right; }
+    tbody td.money { font-weight:700; }
+    tfoot td { padding:3mm 4mm; font-weight:800; font-size:10pt; background:#f0f0ef; border-top:2px solid #0e0e0d; }
+    tfoot td.right { text-align:right; color:#0e0e0d; }
+    .badge { display:inline-block; padding:1px 6px; border-radius:4px; font-size:7.5pt; font-weight:700; }
+    .badge-efectivo { background:#ecfdf5; color:#065f46; }
+    .badge-yape { background:#eff6ff; color:#1d4ed8; }
+    .badge-fiado { background:#fffbeb; color:#92400e; }
+    .summary-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:4mm; margin-bottom:4mm; }
+    .summary-card { border-radius:8px; padding:4mm; border:1px solid; }
+    .summary-card.efectivo { background:#ecfdf5; border-color:#a7f3d0; }
+    .summary-card.yape { background:#eff6ff; border-color:#bfdbfe; }
+    .summary-card.fiado { background:#fffbeb; border-color:#fde68a; }
+    .summary-label { font-size:7.5pt; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; opacity:0.65; margin-bottom:1.5mm; }
+    .summary-value { font-size:13pt; font-weight:900; }
+    .summary-card.efectivo .summary-value { color:#065f46; }
+    .summary-card.yape .summary-value { color:#1d4ed8; }
+    .summary-card.fiado .summary-value { color:#92400e; }
+    .total-card { background:#0e0e0d; color:#fff; border-radius:8px; padding:4mm 5mm; display:flex; justify-content:space-between; align-items:center; margin-bottom:3mm; }
+    .total-label { font-size:9pt; font-weight:700; opacity:0.7; }
+    .total-value { font-size:16pt; font-weight:900; }
+    .balance-card { border-radius:8px; padding:4mm 5mm; display:flex; justify-content:space-between; align-items:center; background:${diferenciaFondo}; border:1.5px solid ${diferenciaBorde}; }
+    .balance-desc { font-size:8.5pt; color:#666; }
+    .balance-desc b { color:#1a1a1a; }
+    .balance-value { font-size:15pt; font-weight:900; color:${diferenciaColor}; }
+    .footer { margin-top:10mm; border-top:1px solid #e5e5e5; padding-top:4mm; text-align:center; font-size:8pt; color:#aaa; line-height:1.7; }
+    @page { size:A4; margin:0; }
+    @media print { body { padding:14mm 13mm 16mm; } }
   </style>
 </head>
 <body>
-
-  <!-- Encabezado -->
   <div class="header">
     <div class="header-left">
       <img src="${logoUrl}" class="logo" alt="Bodeguita Juli" onerror="this.style.display='none'"/>
@@ -259,100 +152,40 @@ async function generarReportePDF(cajaData: CajaRegistro, montoRealContado: numbe
     </div>
     <div class="report-info">
       <div class="report-title">Reporte de Cierre de Caja</div>
-      <div class="report-meta">
-        Cajero: <b>${cajaData.cajero_nombre ?? '—'}</b><br/>
-        Generado: ${fechaHora(ahora)}
-      </div>
+      <div class="report-meta">Cajero: <b>${cajaData.cajero_nombre ?? '—'}</b><br/>Generado: ${fechaHora(ahora)}</div>
     </div>
   </div>
-
-  <!-- Información de la sesión -->
   <div class="section">
     <div class="section-title">Información de la Sesión</div>
     <div class="info-grid">
-      <div class="info-card">
-        <div class="info-label">Apertura</div>
-        <div class="info-value">${fechaHora(cajaData.abierta_en)}</div>
-      </div>
-      <div class="info-card">
-        <div class="info-label">Cierre</div>
-        <div class="info-value">${fechaHora(ahora)}</div>
-      </div>
-      <div class="info-card">
-        <div class="info-label">Fondo Inicial</div>
-        <div class="info-value">${money(cajaData.monto_inicial)}</div>
-      </div>
-      <div class="info-card">
-        <div class="info-label">Transacciones</div>
-        <div class="info-value">${ventasValidas.length} válidas${ventasAnuladas.length > 0 ? ` · ${ventasAnuladas.length} anuladas` : ''}</div>
-      </div>
+      <div class="info-card"><div class="info-label">Apertura</div><div class="info-value">${fechaHora(cajaData.abierta_en)}</div></div>
+      <div class="info-card"><div class="info-label">Cierre</div><div class="info-value">${fechaHora(ahora)}</div></div>
+      <div class="info-card"><div class="info-label">Fondo Inicial</div><div class="info-value">${money(cajaData.monto_inicial)}</div></div>
+      <div class="info-card"><div class="info-label">Transacciones</div><div class="info-value">${ventasValidas.length} válidas${ventasAnuladas.length > 0 ? ` · ${ventasAnuladas.length} anuladas` : ''}</div></div>
     </div>
   </div>
-
-  <!-- Tabla de ventas -->
   <div class="section">
     <div class="section-title">Detalle de Ventas del Turno</div>
     <table>
-      <thead>
-        <tr>
-          <th class="center">Ticket</th>
-          <th class="center">Hora</th>
-          <th class="center">Método</th>
-          <th>Cliente</th>
-          <th class="right">Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${filasVentas}
-      </tbody>
-      ${ventasValidas.length > 0 ? `
-      <tfoot>
-        <tr>
-          <td colspan="4"><b>TOTAL VENDIDO (${ventasValidas.length} ventas válidas)</b></td>
-          <td class="right">${money(totalGeneral)}</td>
-        </tr>
-      </tfoot>` : ''}
+      <thead><tr><th class="center">Ticket</th><th class="center">Hora</th><th class="center">Método</th><th>Cliente</th><th class="right">Total</th></tr></thead>
+      <tbody>${filasVentas}</tbody>
+      ${ventasValidas.length > 0 ? `<tfoot><tr><td colspan="4"><b>TOTAL VENDIDO (${ventasValidas.length} ventas válidas)</b></td><td class="right">${money(totalGeneral)}</td></tr></tfoot>` : ''}
     </table>
   </div>
-
-  <!-- Resumen financiero -->
   <div class="section">
     <div class="section-title">Resumen Financiero del Día</div>
-
     <div class="summary-grid">
-      <div class="summary-card efectivo">
-        <div class="summary-label">Efectivo</div>
-        <div class="summary-value">${money(totalEfectivo)}</div>
-      </div>
-      <div class="summary-card yape">
-        <div class="summary-label">Yape</div>
-        <div class="summary-value">${money(totalYape)}</div>
-      </div>
-      <div class="summary-card fiado">
-        <div class="summary-label">Fiado</div>
-        <div class="summary-value">${money(totalFiado)}</div>
-      </div>
+      <div class="summary-card efectivo"><div class="summary-label">Efectivo</div><div class="summary-value">${money(totalEfectivo)}</div></div>
+      <div class="summary-card yape"><div class="summary-label">Yape</div><div class="summary-value">${money(totalYape)}</div></div>
+      <div class="summary-card fiado"><div class="summary-label">Fiado</div><div class="summary-value">${money(totalFiado)}</div></div>
     </div>
-
-    <div class="total-card">
-      <span class="total-label">TOTAL VENDIDO (Efectivo + Yape + Fiado)</span>
-      <span class="total-value">${money(totalGeneral)}</span>
-    </div>
-
+    <div class="total-card"><span class="total-label">TOTAL VENDIDO (Efectivo + Yape + Fiado)</span><span class="total-value">${money(totalGeneral)}</span></div>
     <div class="balance-card">
-      <div class="balance-desc">
-        Efectivo esperado en caja: <b>${money(esperadoEfectivo)}</b>
-        &nbsp;·&nbsp; Efectivo contado: <b>${money(montoRealContado)}</b>
-        &nbsp;·&nbsp; <b>${diferencia >= 0 ? 'Sobrante' : 'Faltante'}</b>
-      </div>
+      <div class="balance-desc">Efectivo esperado: <b>${money(esperadoEfectivo)}</b> &nbsp;·&nbsp; Contado: <b>${money(montoRealContado)}</b> &nbsp;·&nbsp; <b>${diferencia >= 0 ? 'Sobrante' : 'Faltante'}</b></div>
       <div class="balance-value">${diferencia >= 0 ? '+' : ''}${money(diferencia)}</div>
     </div>
   </div>
-
-  <div class="footer">
-    Bodeguita Juli &nbsp;·&nbsp; Reporte generado el ${fechaHora(ahora)} &nbsp;·&nbsp; Documento de uso interno — no válido como comprobante fiscal
-  </div>
-
+  <div class="footer">Bodeguita Juli &nbsp;·&nbsp; Reporte generado el ${fechaHora(ahora)} &nbsp;·&nbsp; Documento de uso interno</div>
 </body>
 </html>`
 
@@ -360,9 +193,7 @@ async function generarReportePDF(cajaData: CajaRegistro, montoRealContado: numbe
     w.document.write(html)
     w.document.close()
     w.focus()
-    setTimeout(() => {
-      w.print()
-    }, 600)
+    setTimeout(() => { w.print() }, 600)
   } catch (err) {
     w.close()
     throw err
@@ -372,12 +203,12 @@ async function generarReportePDF(cajaData: CajaRegistro, montoRealContado: numbe
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export function Caja() {
-  const { session, perfil, signOut } = useAuth()
-  const { caja, cargando, abrir, cerrar } = useCajaCtx()
-  const { historial } = useCaja(session?.user?.id ?? null)
+  const { perfil, esAdmin, signOut } = useAuth()
+  const { caja, historial, cargando, abrir, cerrar, recargarHistorial } = useCajaCtx()
   const navigate = useNavigate()
   const toast = useToast()
 
+  // ── Estado: apertura y cierre ────────────────────────────────────────────────
   const [abrirOpen, setAbrirOpen] = useState(false)
   const [cerrarOpen, setCerrarOpen] = useState(false)
   const [resumenOpen, setResumenOpen] = useState(false)
@@ -387,26 +218,49 @@ export function Caja() {
   const [generandoPDF, setGenerandoPDF] = useState(false)
   const [resumen, setResumen] = useState<ResumenCierre | null>(null)
 
+  // ── Estado: filtros del historial ────────────────────────────────────────────
+  const hoy = ymd(new Date())
+  const [histDesde, setHistDesde] = useState('')
+  const [histHasta, setHistHasta] = useState('')
+  const [filtrosHistOpen, setFiltrosHistOpen] = useState(false)
+
+  // ── Estado: limpiar historial ────────────────────────────────────────────────
+  const [limpiarHistOpen, setLimpiarHistOpen] = useState(false)
+  const [limpiandoHist, setLimpiandoHist] = useState(false)
+
   const RAPIDOS_INICIAL = [50, 100, 150, 200, 300, 500]
 
-  // Muestra el nombre correcto: admin → brand operador, cajero → su primer nombre
   const nombreDisplay =
     perfil?.rol === 'administrador'
       ? BRAND.operador
       : (perfil?.nombre?.split(' ')[0] ?? 'Cajero')
 
-  /**
-   * Limpia el estado local y el almacenamiento del turno.
-   * El estado reactivo del contexto (caja → null) ya fue
-   * reseteado por cerrar(). Esta función complementa eso
-   * borrando la clave de localStorage y reseteando inputs.
-   */
+  // ── Historial filtrado por fechas ────────────────────────────────────────────
+  const historialFiltrado = useMemo(() => {
+    if (!histDesde && !histHasta) return historial
+    return historial.filter((h: CajaRegistro) => {
+      const fecha = h.abierta_en.slice(0, 10)
+      if (histDesde && fecha < histDesde) return false
+      if (histHasta && fecha > histHasta) return false
+      return true
+    })
+  }, [historial, histDesde, histHasta])
+
+  const filtrosHistActivos = (histDesde ? 1 : 0) + (histHasta ? 1 : 0)
+
+  // ── Cajas cerradas disponibles para limpiar ──────────────────────────────────
+  const cajasParaLimpiar = useMemo(
+    () => historial.filter((h: CajaRegistro) => h.estado === 'cerrada'),
+    [historial],
+  )
+
   function resetearEstadoDiario() {
     localStorage.removeItem('bodeguita_caja_activa_id')
     setMontoReal('')
     setMontoInicial('')
   }
 
+  // ── Apertura de caja ─────────────────────────────────────────────────────────
   async function confirmarApertura() {
     const monto = parseFloat(montoInicial) || 0
     if (monto < 0) {
@@ -426,6 +280,7 @@ export function Caja() {
     }
   }
 
+  // ── Cierre de caja ───────────────────────────────────────────────────────────
   async function confirmarCierre() {
     const monto = parseFloat(montoReal)
     if (isNaN(monto) || monto < 0) {
@@ -436,9 +291,6 @@ export function Caja() {
 
     setProcesando(true)
     try {
-      // PASO 1 — Compilar y generar PDF
-      // Si el PDF falla (popup bloqueado u otro error) se lanza excepción y
-      // el flujo se detiene aquí: los datos quedan intactos en la BD.
       setGenerandoPDF(true)
       try {
         await generarReportePDF(caja, monto)
@@ -450,15 +302,9 @@ export function Caja() {
         setGenerandoPDF(false)
       }
 
-      // PASO 2 — Actualizar estado de caja en la base de datos
       const r = await cerrar(monto)
       setResumen(r)
-
-      // PASO 3 — Reset a cero: limpia estado local y localStorage del turno
       resetearEstadoDiario()
-
-      // PASO 4 (signOut + redirect) se ejecuta desde el modal de resumen
-      // para que el usuario pueda revisar el arqueo antes de salir.
       setCerrarOpen(false)
       setResumenOpen(true)
       toast.exito('Caja cerrada correctamente. Reporte PDF generado.')
@@ -466,6 +312,30 @@ export function Caja() {
       toast.error(e instanceof Error ? e.message : 'Error al cerrar la caja')
     } finally {
       setProcesando(false)
+    }
+  }
+
+  // ── Limpiar historial de cajas cerradas ──────────────────────────────────────
+  async function confirmarLimpiarHistorial() {
+    if (cajasParaLimpiar.length === 0) {
+      toast.exito('No hay registros cerrados para limpiar.')
+      setLimpiarHistOpen(false)
+      return
+    }
+    setLimpiandoHist(true)
+    try {
+      const ids = cajasParaLimpiar.map((h: CajaRegistro) => h.id)
+      // Preserva datos de ventas: desvincula caja_id antes de borrar registros
+      await supabase.from('ventas').update({ caja_id: null }).in('caja_id', ids)
+      const { error } = await supabase.from('cajas').delete().in('id', ids)
+      if (error) throw error
+      toast.exito(`${ids.length} registro(s) de caja eliminado(s)`)
+      setLimpiarHistOpen(false)
+      recargarHistorial()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al limpiar el historial')
+    } finally {
+      setLimpiandoHist(false)
     }
   }
 
@@ -479,6 +349,8 @@ export function Caja() {
 
   return (
     <div className="space-y-4">
+
+      {/* ── Encabezado ── */}
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold text-ink-900">Control de caja</h1>
@@ -501,23 +373,25 @@ export function Caja() {
         )}
       </div>
 
-      {/* Estado actual de la caja */}
+      {/* ── KPIs de la caja activa ── */}
       {caja ? (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <div className="col-span-2 lg:col-span-1 rounded-2xl border border-ink-900 bg-ink-900 p-4 text-white">
+
+          {/* Tarjeta "Caja Abierta" — mismo estilo neutral que las KPI cards */}
+          <div className="col-span-2 lg:col-span-1 card p-4">
             <div className="mb-3 flex items-center gap-2">
               <span className="relative flex size-2">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent-400 opacity-75" />
-                <span className="relative inline-flex size-2 rounded-full bg-accent-400" />
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent-500 opacity-75" />
+                <span className="relative inline-flex size-2 rounded-full bg-accent-500" />
               </span>
-              <span className="text-xs font-semibold text-white/50 uppercase tracking-wider">
+              <span className="text-xs font-semibold uppercase tracking-wider text-ink-400">
                 Caja abierta
               </span>
             </div>
-            <p className="tabular font-display text-2xl font-bold">
+            <p className="tabular font-display text-2xl font-bold text-ink-900">
               {money((caja.total_efectivo ?? 0) + (caja.total_yape ?? 0))}
             </p>
-            <p className="mt-1 text-xs text-white/40">
+            <p className="mt-1 text-xs text-ink-400">
               Efectivo + Yape · desde {horaCorta(caja.abierta_en)}
             </p>
           </div>
@@ -558,61 +432,103 @@ export function Caja() {
         </div>
       )}
 
-      {/* Historial de cajas */}
+      {/* ── Historial de cajas ── */}
       {historial.length > 0 && (
         <Card className="overflow-hidden">
-          <div className="border-b border-ink-100 px-4 py-3">
+          <div className="flex items-center justify-between gap-3 border-b border-ink-100 px-4 py-3">
             <h3 className="font-display font-bold text-ink-900">Historial de cajas</h3>
+            <div className="flex items-center gap-2">
+              {/* Botón filtros */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="relative"
+                onClick={() => setFiltrosHistOpen(true)}
+              >
+                <Filter className="size-4" /> Filtros
+                {filtrosHistActivos > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full bg-accent-600 text-[0.65rem] font-bold text-white">
+                    {filtrosHistActivos}
+                  </span>
+                )}
+              </Button>
+              {/* Limpiar historial — solo admin, solo si hay cajas cerradas */}
+              {esAdmin && cajasParaLimpiar.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-red-200 text-red-600 hover:bg-red-50"
+                  onClick={() => setLimpiarHistOpen(true)}
+                >
+                  <Trash2 className="size-4" /> Limpiar
+                </Button>
+              )}
+            </div>
           </div>
-          <ul className="divide-y divide-ink-100">
-            {historial.map((h) => (
-              <li key={h.id} className="flex items-center justify-between px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cx(
-                      'grid size-8 place-items-center rounded-lg',
-                      h.estado === 'abierta' ? 'bg-accent-100' : 'bg-ink-100',
-                    )}
-                  >
-                    {h.estado === 'abierta' ? (
-                      <LockOpen className="size-4 text-accent-700" />
-                    ) : (
-                      <Lock className="size-4 text-ink-500" />
-                    )}
+
+          {historialFiltrado.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-ink-400">
+              Sin registros para el periodo seleccionado.
+              <button
+                onClick={() => { setHistDesde(''); setHistHasta('') }}
+                className="ml-2 text-accent-600 underline"
+              >
+                Ver todos
+              </button>
+            </div>
+          ) : (
+            <ul className="divide-y divide-ink-100">
+              {historialFiltrado.map((h: CajaRegistro) => (
+                <li key={h.id} className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={cx(
+                        'grid size-8 place-items-center rounded-lg',
+                        h.estado === 'abierta' ? 'bg-accent-100' : 'bg-ink-100',
+                      )}
+                    >
+                      {h.estado === 'abierta' ? (
+                        <LockOpen className="size-4 text-accent-700" />
+                      ) : (
+                        <Lock className="size-4 text-ink-500" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-ink-900">
+                        {h.cajero_nombre ?? 'Cajero'}
+                      </p>
+                      <p className="text-xs text-ink-400">
+                        {fechaHora(h.abierta_en)}
+                        {h.cerrada_en && ` → ${horaCorta(h.cerrada_en)}`}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-ink-900">
-                      {h.cajero_nombre ?? 'Cajero'}
+                  <div className="text-right">
+                    <p className="tabular text-sm font-bold text-ink-900">
+                      {money(h.monto_inicial + h.total_efectivo + h.total_yape)}
                     </p>
-                    <p className="text-xs text-ink-400">
-                      {fechaHora(h.abierta_en)}
-                      {h.cerrada_en && ` → ${horaCorta(h.cerrada_en)}`}
-                    </p>
+                    <div className="mt-0.5">
+                      {h.estado === 'abierta' ? (
+                        <Badge tone="success">Abierta</Badge>
+                      ) : h.monto_real !== null ? (
+                        <Badge tone={h.monto_real >= h.monto_inicial + h.total_efectivo ? 'success' : 'danger'}>
+                          {h.monto_real >= h.monto_inicial + h.total_efectivo ? 'Cuadrado' : 'Descuadre'}
+                        </Badge>
+                      ) : (
+                        <Badge tone="info">Cerrada</Badge>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="text-right">
-                  <p className="tabular text-sm font-bold text-ink-900">
-                    {money(h.monto_inicial + h.total_efectivo + h.total_yape)}
-                  </p>
-                  <div className="mt-0.5">
-                    {h.estado === 'abierta' ? (
-                      <Badge tone="success">Abierta</Badge>
-                    ) : h.monto_real !== null ? (
-                      <Badge tone={h.monto_real >= h.monto_inicial + h.total_efectivo ? 'success' : 'danger'}>
-                        {h.monto_real >= h.monto_inicial + h.total_efectivo ? 'Cuadrado' : 'Descuadre'}
-                      </Badge>
-                    ) : (
-                      <Badge tone="info">Cerrada</Badge>
-                    )}
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
       )}
 
-      {/* ── Sheet: abrir caja ── */}
+      {/* ══════════════════════════════════════════════════════════════════════════
+          Sheet: abrir caja
+      ══════════════════════════════════════════════════════════════════════════ */}
       <Sheet
         open={abrirOpen}
         onClose={() => setAbrirOpen(false)}
@@ -661,7 +577,9 @@ export function Caja() {
         </div>
       </Sheet>
 
-      {/* ── Sheet: cerrar caja ── */}
+      {/* ══════════════════════════════════════════════════════════════════════════
+          Sheet: cerrar caja
+      ══════════════════════════════════════════════════════════════════════════ */}
       <Sheet
         open={cerrarOpen}
         onClose={() => !procesando && setCerrarOpen(false)}
@@ -685,7 +603,6 @@ export function Caja() {
       >
         {caja && (
           <div className="space-y-4">
-            {/* Aviso de generación de PDF */}
             <div className="flex items-start gap-2.5 rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-700">
               <FileDown className="mt-0.5 size-4 shrink-0" />
               <span>
@@ -693,16 +610,11 @@ export function Caja() {
                 <strong>reporte PDF</strong> con todas las ventas del turno.
               </span>
             </div>
-
             <div className="rounded-xl bg-ink-50 p-4 text-sm space-y-1.5">
               <InfoRow k="Fondo inicial" v={money(caja.monto_inicial)} />
               <InfoRow k="Ventas efectivo" v={money(caja.total_efectivo)} />
               <div className="border-t border-ink-200 pt-1.5">
-                <InfoRow
-                  k="Efectivo esperado"
-                  v={money(caja.monto_inicial + caja.total_efectivo)}
-                  bold
-                />
+                <InfoRow k="Efectivo esperado" v={money(caja.monto_inicial + caja.total_efectivo)} bold />
               </div>
               <InfoRow k="Ventas Yape" v={money(caja.total_yape)} />
               <InfoRow k="Ventas Fiado" v={money(caja.total_fiado)} />
@@ -730,7 +642,9 @@ export function Caja() {
         )}
       </Sheet>
 
-      {/* ── Sheet: resumen de arqueo ── */}
+      {/* ══════════════════════════════════════════════════════════════════════════
+          Sheet: resumen del arqueo
+      ══════════════════════════════════════════════════════════════════════════ */}
       <Sheet
         open={resumenOpen}
         onClose={() => setResumenOpen(false)}
@@ -743,7 +657,6 @@ export function Caja() {
             className="w-full !bg-ink-900 hover:!bg-ink-700"
             onClick={async () => {
               setResumenOpen(false)
-              // Limpia sesión y redirige al login para iniciar jornada nueva
               await signOut()
               navigate('/login', { replace: true })
             }}
@@ -754,7 +667,6 @@ export function Caja() {
       >
         {resumen && (
           <div className="space-y-4">
-            {/* Confirmación visual */}
             <div className="flex flex-col items-center text-center pb-2">
               <div className="mb-2 grid size-12 place-items-center rounded-full bg-accent-100">
                 <CheckCircle2 className="size-6 text-accent-700" />
@@ -762,7 +674,6 @@ export function Caja() {
               <p className="font-display text-base font-bold text-ink-900">Caja cerrada correctamente</p>
               <p className="text-xs text-ink-400 mt-0.5">El reporte PDF fue generado y enviado al navegador</p>
             </div>
-
             <div className="rounded-xl bg-ink-50 p-4 text-sm space-y-1.5">
               <InfoRow k="Fondo inicial" v={money(resumen.monto_inicial)} />
               <InfoRow k="Ventas efectivo" v={money(resumen.total_efectivo)} />
@@ -773,9 +684,7 @@ export function Caja() {
               <InfoRow k="Ventas Yape" v={money(resumen.total_yape)} />
               <InfoRow k="Ventas Fiado" v={money(resumen.total_fiado)} />
             </div>
-
             <DifCard esperado={resumen.esperado_efectivo} real={resumen.ingresado_real} />
-
             {resumen.diferencia !== 0 && (
               <p className="rounded-xl bg-amber-50 px-3.5 py-3 text-xs text-amber-700">
                 <AlertTriangle className="mb-1 inline size-3.5" />{' '}
@@ -784,7 +693,6 @@ export function Caja() {
                   : `Hay S/ ${resumen.diferencia.toFixed(2)} de sobra.`}
               </p>
             )}
-
             <div className="rounded-xl bg-accent-50 px-3.5 py-3 text-xs text-accent-700">
               Los datos han sido archivados en la base de datos para auditoría. El panel está listo
               para el siguiente turno.
@@ -792,6 +700,134 @@ export function Caja() {
           </div>
         )}
       </Sheet>
+
+      {/* ══════════════════════════════════════════════════════════════════════════
+          Sheet: filtros del historial
+      ══════════════════════════════════════════════════════════════════════════ */}
+      <Sheet
+        open={filtrosHistOpen}
+        onClose={() => setFiltrosHistOpen(false)}
+        title="Filtrar historial"
+        maxWidth="max-w-sm"
+        footer={
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => { setHistDesde(''); setHistHasta('') }}
+            >
+              <X className="size-4" /> Limpiar
+            </Button>
+            <Button variant="secondary" className="flex-1" onClick={() => setFiltrosHistOpen(false)}>
+              Aplicar
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label mb-1.5 block">Desde</label>
+              <input
+                type="date"
+                className="input"
+                value={histDesde}
+                max={histHasta || hoy}
+                onChange={(e) => setHistDesde(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label mb-1.5 block">Hasta</label>
+              <input
+                type="date"
+                className="input"
+                value={histHasta}
+                min={histDesde}
+                max={hoy}
+                onChange={(e) => setHistHasta(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              { l: 'Hoy', d: 0 },
+              { l: 'Ayer', d: 1 },
+              { l: 'Últ. 7 días', d: 7 },
+              { l: 'Últ. 30 días', d: 30 },
+            ].map((r) => (
+              <button
+                key={r.l}
+                className="rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-ink-50"
+                onClick={() => {
+                  const fin = new Date()
+                  const ini = new Date()
+                  if (r.d === 1) {
+                    ini.setDate(ini.getDate() - 1)
+                    fin.setDate(fin.getDate() - 1)
+                  } else if (r.d > 1) {
+                    ini.setDate(ini.getDate() - r.d)
+                  }
+                  setHistDesde(ymd(ini))
+                  setHistHasta(ymd(fin))
+                }}
+              >
+                {r.l}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Sheet>
+
+      {/* ══════════════════════════════════════════════════════════════════════════
+          Sheet: confirmar limpiar historial
+      ══════════════════════════════════════════════════════════════════════════ */}
+      <Sheet
+        open={limpiarHistOpen}
+        onClose={() => !limpiandoHist && setLimpiarHistOpen(false)}
+        title="Limpiar historial de cajas"
+        maxWidth="max-w-sm"
+        footer={
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              disabled={limpiandoHist}
+              onClick={() => setLimpiarHistOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              className="flex-1"
+              loading={limpiandoHist}
+              onClick={confirmarLimpiarHistorial}
+            >
+              <Trash2 className="size-4" /> Eliminar registros
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+            <p className="font-semibold">Esta acción es irreversible.</p>
+            <p className="mt-1">
+              Se eliminarán <strong>{cajasParaLimpiar.length}</strong> registro(s) de cajas cerradas.
+              Los datos de ventas asociadas se conservarán intactos.
+            </p>
+          </div>
+          <div className="rounded-xl bg-ink-50 px-4 py-3 text-sm text-ink-600">
+            <p className="font-medium text-ink-800 mb-1">¿Qué se elimina?</p>
+            <ul className="space-y-0.5 list-disc list-inside text-ink-500">
+              <li>Registros de sesiones de caja cerradas</li>
+              <li>Montos iniciales y totales de cada turno</li>
+            </ul>
+            <p className="mt-2 font-medium text-accent-700">
+              ✓ Las ventas y reportes se conservan
+            </p>
+          </div>
+        </div>
+      </Sheet>
+
     </div>
   )
 }

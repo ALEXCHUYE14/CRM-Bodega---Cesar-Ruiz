@@ -10,12 +10,14 @@ import type { CajaRegistro } from '@/types/database'
 
 interface CajaState {
   caja: CajaRegistro | null
+  historial: CajaRegistro[]
   cargando: boolean
   abrir: (montoInicial: number) => Promise<CajaRegistro>
   cerrar: (montoReal: number) => Promise<ResumenCierre>
   sumarVenta: (cajaId: string, metodo: 'efectivo' | 'yape' | 'fiado', monto: number) => Promise<void>
   total: number
   recargar: () => void
+  recargarHistorial: () => void
 }
 
 const CajaContext = createContext<CajaState | undefined>(undefined)
@@ -27,12 +29,14 @@ export function CajaProvider({ children }: { children: ReactNode }) {
   const cajeroId = session?.user?.id ?? null
   const {
     caja,
+    historial,
     cargando: cajaCargando,
     abrir: abrirHook,
     cerrar,
     sumarVenta,
     total,
     recargar,
+    recargarHistorial,
   } = useCaja(cajeroId)
 
   async function abrir(montoInicial: number): Promise<CajaRegistro> {
@@ -44,6 +48,7 @@ export function CajaProvider({ children }: { children: ReactNode }) {
 
   const value: CajaState = {
     caja,
+    historial,
     // Mientras auth siga cargando, la caja también se muestra como "cargando"
     cargando: authCargando || cajaCargando,
     abrir,
@@ -51,6 +56,7 @@ export function CajaProvider({ children }: { children: ReactNode }) {
     sumarVenta,
     total,
     recargar,
+    recargarHistorial,
   }
 
   return <CajaContext.Provider value={value}>{children}</CajaContext.Provider>

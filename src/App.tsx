@@ -14,6 +14,7 @@ import { Caja } from '@/pages/Caja'
 import { Proveedores } from '@/pages/Proveedores'
 import { Compras } from '@/pages/Compras'
 import { Mermas } from '@/pages/Mermas'
+import { Configuracion } from '@/pages/Configuracion'
 import type { ReactNode } from 'react'
 
 function Cargando() {
@@ -136,6 +137,17 @@ function Rutas() {
           <Privado>
             <SoloAdmin>
               <Mermas />
+            </SoloAdmin>
+          </Privado>
+        }
+      />
+
+      <Route
+        path="/configuracion"
+        element={
+          <Privado>
+            <SoloAdmin>
+              <Configuracion />
             </SoloAdmin>
           </Privado>
         }

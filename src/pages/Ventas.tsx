@@ -7,7 +7,6 @@ import {
   X,
   Ban,
   ChevronDown,
-  Trash2,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/context/AuthContext'
@@ -45,11 +44,7 @@ export function Ventas() {
   const [ventas, setVentas] = useState<Venta[]>([])
   const [cargando, setCargando] = useState(true)
   const [filtrosOpen, setFiltrosOpen] = useState(false)
-
   const [ticket, setTicket] = useState<Venta | null>(null)
-  const [limpiarOpen, setLimpiarOpen] = useState(false)
-  const [limpiarConfirm, setLimpiarConfirm] = useState('')
-  const [limpiando, setLimpiando] = useState(false)
 
   // Lista de cajeros para el filtro (solo admin)
   useEffect(() => {
@@ -110,34 +105,6 @@ export function Ventas() {
     setCajeroId('')
   }
 
-  async function ejecutarLimpiarHistorial() {
-    setLimpiando(true)
-    try {
-      const { data: ids } = await supabase
-        .from('ventas')
-        .select('id')
-        .gte('creado_en', `${desde}T00:00:00`)
-        .lte('creado_en', `${hasta}T23:59:59.999`)
-
-      if (ids && ids.length > 0) {
-        const ventaIds = ids.map((r) => r.id)
-        await supabase.from('detalle_ventas').delete().in('venta_id', ventaIds)
-        const { error } = await supabase.from('ventas').delete().in('id', ventaIds)
-        if (error) throw error
-        toast.exito(`${ventaIds.length} venta(s) eliminada(s)`)
-      } else {
-        toast.exito('No había ventas en ese periodo')
-      }
-      setLimpiarOpen(false)
-      setLimpiarConfirm('')
-      cargar()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error al limpiar historial')
-    } finally {
-      setLimpiando(false)
-    }
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -145,31 +112,19 @@ export function Ventas() {
           <h1 className="font-display text-2xl font-bold text-ink-900">Ventas</h1>
           <p className="text-sm text-ink-400">Historial de transacciones y reimpresion</p>
         </div>
-        <div className="flex items-center gap-2">
-          {esAdmin && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => { setLimpiarOpen(true); setLimpiarConfirm('') }}
-              className="text-red-600 border-red-200 hover:bg-red-50"
-            >
-              <Trash2 className="size-4" /> Limpiar
-            </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setFiltrosOpen(true)}
+          className="relative"
+        >
+          <Filter className="size-4" /> Filtros
+          {filtrosActivos > 0 && (
+            <span className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full bg-accent-600 text-[0.65rem] font-bold text-white">
+              {filtrosActivos}
+            </span>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setFiltrosOpen(true)}
-            className="relative"
-          >
-            <Filter className="size-4" /> Filtros
-            {filtrosActivos > 0 && (
-              <span className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full bg-accent-600 text-[0.65rem] font-bold text-white">
-                {filtrosActivos}
-              </span>
-            )}
-          </Button>
-        </div>
+        </Button>
       </div>
 
       {/* Resumen del periodo */}
@@ -411,56 +366,6 @@ export function Ventas() {
               </button>
             ))}
           </div>
-        </div>
-      </Sheet>
-
-      {/* Sheet: limpiar historial (solo admin) */}
-      <Sheet
-        open={limpiarOpen}
-        onClose={() => { setLimpiarOpen(false); setLimpiarConfirm('') }}
-        title="Limpiar historial"
-        maxWidth="max-w-sm"
-        footer={
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={() => { setLimpiarOpen(false); setLimpiarConfirm('') }}
-            >
-              Cancelar
-            </Button>
-            <Button
-              className="flex-1 bg-red-600 text-white hover:bg-red-700 disabled:opacity-40"
-              loading={limpiando}
-              disabled={limpiarConfirm !== 'LIMPIAR'}
-              onClick={ejecutarLimpiarHistorial}
-            >
-              Eliminar historial
-            </Button>
-          </div>
-        }
-      >
-        <div className="space-y-4">
-          <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
-            <p className="font-semibold">Esta acción es irreversible.</p>
-            <p className="mt-1">
-              Se eliminarán todas las ventas del periodo{' '}
-              <b>{desde}</b> al <b>{hasta}</b>.
-            </p>
-          </div>
-          <label className="block">
-            <span className="label mb-1.5 block">
-              Escribe <b>LIMPIAR</b> para confirmar
-            </span>
-            <input
-              className="input font-mono tracking-widest"
-              value={limpiarConfirm}
-              onChange={(e) => setLimpiarConfirm(e.target.value.toUpperCase())}
-              placeholder="LIMPIAR"
-              autoComplete="off"
-              autoFocus
-            />
-          </label>
         </div>
       </Sheet>
 
