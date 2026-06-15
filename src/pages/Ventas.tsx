@@ -103,21 +103,25 @@ export function Ventas() {
     // La caja es "de hoy" si fue abierta en la fecha actual
     const cajaEsDeHoy = caja !== null && caja.abierta_en.slice(0, 10) === hoy
     // Solo sincronizamos con caja cuando el filtro está exactamente en hoy
-    const usandoCaja = cajaEsDeHoy && desde === hoy && hasta === hoy
+    const filtroEsHoy = desde === hoy && hasta === hoy
+    const anuladas    = filtradas.length - validas.length
+    // Si hay ventas anuladas los totales de caja no las reflejan — usar BD en ese caso
+    const canUseCaja  = cajaEsDeHoy && filtroEsHoy && anuladas === 0
+    const usandoCaja  = canUseCaja
 
     // Conversión explícita a Number para evitar concatenación de texto o NaN
-    const efectivoCaja = usandoCaja && caja ? Number(caja.total_efectivo) : null
-    const yapeCaja     = usandoCaja && caja ? Number(caja.total_yape)     : null
-    const fiadoCaja    = usandoCaja && caja ? Number(caja.total_fiado)    : null
+    const efectivoCaja = canUseCaja && caja ? Number(caja.total_efectivo) : null
+    const yapeCaja     = canUseCaja && caja ? Number(caja.total_yape)     : null
+    const fiadoCaja    = canUseCaja && caja ? Number(caja.total_fiado)    : null
 
-    const total = usandoCaja && efectivoCaja !== null && yapeCaja !== null && fiadoCaja !== null
+    const total = canUseCaja && efectivoCaja !== null && yapeCaja !== null && fiadoCaja !== null
       ? efectivoCaja + yapeCaja + fiadoCaja
       : totalDB
 
     return {
       total,
       count: validas.length,
-      anuladas: filtradas.length - validas.length,
+      anuladas,
       usandoCaja,
       efectivoCaja,
       yapeCaja,

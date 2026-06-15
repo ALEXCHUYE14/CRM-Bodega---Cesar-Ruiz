@@ -1,4 +1,4 @@
-// Tipos del dominio del sistema Cesar Ruiz POS
+// Tipos del dominio del sistema Bodeguita Juli
 
 export type Rol = 'administrador' | 'cajero'
 export type MetodoPago = 'efectivo' | 'yape' | 'fiado'

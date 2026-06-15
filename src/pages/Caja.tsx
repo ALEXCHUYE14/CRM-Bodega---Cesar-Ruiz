@@ -25,6 +25,12 @@ import { money, fechaHora, horaCorta, ymd, ETIQUETA_PAGO, cx } from '@/utils/for
 import type { ResumenCierre } from '@/hooks/useCaja'
 import type { CajaRegistro } from '@/types/database'
 
+// Constante fuera del componente — evita recreación del array en cada render
+const RAPIDOS_INICIAL = [50, 100, 150, 200, 300, 500]
+
+// Conversión numérica segura — Supabase puede devolver NUMERIC como string
+const toNum = (v: unknown): number => Number(v ?? 0)
+
 // ─── Generador de reporte PDF de cierre de caja ───────────────────────────────
 
 async function generarReportePDF(cajaData: CajaRegistro, montoRealContado: number): Promise<void> {
@@ -49,22 +55,26 @@ async function generarReportePDF(cajaData: CajaRegistro, montoRealContado: numbe
     if (error) throw error
 
     const ventas = ventasData ?? []
-    const ventasValidas = ventas.filter((v) => !v.anulada)
+    const ventasValidas  = ventas.filter((v) => !v.anulada)
     const ventasAnuladas = ventas.filter((v) => v.anulada)
 
-    const totalEfectivo = ventasValidas.filter((v) => v.metodo === 'efectivo').reduce((s, v) => s + v.total, 0)
-    const totalYape = ventasValidas.filter((v) => v.metodo === 'yape').reduce((s, v) => s + v.total, 0)
-    const totalFiado = ventasValidas.filter((v) => v.metodo === 'fiado').reduce((s, v) => s + v.total, 0)
-    const totalGeneral = ventasValidas.reduce((s, v) => s + v.total, 0)
+    // toNum() antes de reduce previene concatenación si Supabase devolvió strings
+    const totalEfectivo = ventasValidas.filter((v) => v.metodo === 'efectivo').reduce((s, v) => s + toNum(v.total), 0)
+    const totalYape     = ventasValidas.filter((v) => v.metodo === 'yape').reduce((s, v) => s + toNum(v.total), 0)
+    const totalFiado    = ventasValidas.filter((v) => v.metodo === 'fiado').reduce((s, v) => s + toNum(v.total), 0)
+    const totalGeneral  = ventasValidas.reduce((s, v) => s + toNum(v.total), 0)
 
-    const esperadoEfectivo = cajaData.monto_inicial + cajaData.total_efectivo
-    const diferencia = montoRealContado - esperadoEfectivo
+    const montoInicial      = toNum(cajaData.monto_inicial)
+    const totalEfectivoCaja = toNum(cajaData.total_efectivo)
+    const esperadoEfectivo  = montoInicial + totalEfectivoCaja
+    const diferencia        = toNum(montoRealContado) - esperadoEfectivo
+
     const diferenciaColor = diferencia >= 0 ? '#065f46' : '#991b1b'
     const diferenciaFondo = diferencia >= 0 ? '#ecfdf5' : '#fef2f2'
     const diferenciaBorde = diferencia >= 0 ? '#a7f3d0' : '#fecaca'
 
     const logoUrl = `${window.location.origin}/img/logo.jpeg`
-    const ahora = new Date().toISOString()
+    const ahora   = new Date().toISOString()
 
     const filasVentas =
       ventasValidas.length > 0
@@ -76,7 +86,7 @@ async function generarReportePDF(cajaData: CajaRegistro, montoRealContado: numbe
             <td class="center">${horaCorta(v.creado_en)}</td>
             <td class="center"><span class="badge badge-${v.metodo}">${ETIQUETA_PAGO[v.metodo] ?? v.metodo}</span></td>
             <td>${v.cliente_nombre ? `<span style="color:#92400e;">${v.cliente_nombre}</span>` : '<span style="color:#aaa;">—</span>'}</td>
-            <td class="right money">${money(v.total)}</td>
+            <td class="right money">${money(toNum(v.total))}</td>
           </tr>`,
             )
             .join('')
@@ -160,7 +170,7 @@ async function generarReportePDF(cajaData: CajaRegistro, montoRealContado: numbe
     <div class="info-grid">
       <div class="info-card"><div class="info-label">Apertura</div><div class="info-value">${fechaHora(cajaData.abierta_en)}</div></div>
       <div class="info-card"><div class="info-label">Cierre</div><div class="info-value">${fechaHora(ahora)}</div></div>
-      <div class="info-card"><div class="info-label">Fondo Inicial</div><div class="info-value">${money(cajaData.monto_inicial)}</div></div>
+      <div class="info-card"><div class="info-label">Fondo Inicial</div><div class="info-value">${money(montoInicial)}</div></div>
       <div class="info-card"><div class="info-label">Transacciones</div><div class="info-value">${ventasValidas.length} válidas${ventasAnuladas.length > 0 ? ` · ${ventasAnuladas.length} anuladas` : ''}</div></div>
     </div>
   </div>
@@ -181,7 +191,7 @@ async function generarReportePDF(cajaData: CajaRegistro, montoRealContado: numbe
     </div>
     <div class="total-card"><span class="total-label">TOTAL VENDIDO (Efectivo + Yape + Fiado)</span><span class="total-value">${money(totalGeneral)}</span></div>
     <div class="balance-card">
-      <div class="balance-desc">Efectivo esperado: <b>${money(esperadoEfectivo)}</b> &nbsp;·&nbsp; Contado: <b>${money(montoRealContado)}</b> &nbsp;·&nbsp; <b>${diferencia >= 0 ? 'Sobrante' : 'Faltante'}</b></div>
+      <div class="balance-desc">Efectivo esperado: <b>${money(esperadoEfectivo)}</b> &nbsp;·&nbsp; Contado: <b>${money(toNum(montoRealContado))}</b> &nbsp;·&nbsp; <b>${diferencia >= 0 ? 'Sobrante' : 'Faltante'}</b></div>
       <div class="balance-value">${diferencia >= 0 ? '+' : ''}${money(diferencia)}</div>
     </div>
   </div>
@@ -206,29 +216,33 @@ export function Caja() {
   const { perfil, esAdmin, signOut } = useAuth()
   const { caja, historial, cargando, abrir, cerrar, recargarHistorial } = useCajaCtx()
   const navigate = useNavigate()
-  const toast = useToast()
+  const toast    = useToast()
 
   // ── Estado: apertura y cierre ────────────────────────────────────────────────
-  const [abrirOpen, setAbrirOpen] = useState(false)
-  const [cerrarOpen, setCerrarOpen] = useState(false)
-  const [resumenOpen, setResumenOpen] = useState(false)
+  const [abrirOpen,    setAbrirOpen]    = useState(false)
+  const [cerrarOpen,   setCerrarOpen]   = useState(false)
+  const [resumenOpen,  setResumenOpen]  = useState(false)
   const [montoInicial, setMontoInicial] = useState('')
-  const [montoReal, setMontoReal] = useState('')
-  const [procesando, setProcesando] = useState(false)
+  const [montoReal,    setMontoReal]    = useState('')
+  const [procesando,   setProcesando]   = useState(false)
   const [generandoPDF, setGenerandoPDF] = useState(false)
-  const [resumen, setResumen] = useState<ResumenCierre | null>(null)
+  const [resumen,      setResumen]      = useState<ResumenCierre | null>(null)
 
   // ── Estado: filtros del historial ────────────────────────────────────────────
-  const hoy = ymd(new Date())
-  const [histDesde, setHistDesde] = useState('')
-  const [histHasta, setHistHasta] = useState('')
+  const hoy = useMemo(() => ymd(new Date()), [])
+  const [histDesde,       setHistDesde]       = useState('')
+  const [histHasta,       setHistHasta]       = useState('')
   const [filtrosHistOpen, setFiltrosHistOpen] = useState(false)
 
   // ── Estado: limpiar historial ────────────────────────────────────────────────
   const [limpiarHistOpen, setLimpiarHistOpen] = useState(false)
-  const [limpiandoHist, setLimpiandoHist] = useState(false)
+  const [limpiandoHist,   setLimpiandoHist]   = useState(false)
 
-  const RAPIDOS_INICIAL = [50, 100, 150, 200, 300, 500]
+  // Fecha para el encabezado — calculada una sola vez por montaje
+  const fechaDisplay = useMemo(
+    () => new Date().toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' }),
+    [],
+  )
 
   const nombreDisplay =
     perfil?.rol === 'administrador'
@@ -254,10 +268,10 @@ export function Caja() {
     [historial],
   )
 
-  function resetearEstadoDiario() {
-    localStorage.removeItem('bodeguita_caja_activa_id')
+  function limpiarEstadoLocal() {
     setMontoReal('')
     setMontoInicial('')
+    // localStorage.removeItem ya fue llamado dentro de useCaja.cerrar()
   }
 
   // ── Apertura de caja ─────────────────────────────────────────────────────────
@@ -304,7 +318,7 @@ export function Caja() {
 
       const r = await cerrar(monto)
       setResumen(r)
-      resetearEstadoDiario()
+      limpiarEstadoLocal()
       setCerrarOpen(false)
       setResumenOpen(true)
       toast.exito('Caja cerrada correctamente. Reporte PDF generado.')
@@ -355,7 +369,7 @@ export function Caja() {
         <div>
           <h1 className="font-display text-2xl font-bold text-ink-900">Control de caja</h1>
           <p className="text-sm text-ink-400">
-            {nombreDisplay} · {new Date().toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' })}
+            {nombreDisplay} · {fechaDisplay}
           </p>
         </div>
         {!caja ? (
@@ -377,7 +391,7 @@ export function Caja() {
       {caja ? (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
 
-          {/* Tarjeta "Caja Abierta" — mismo estilo neutral que las KPI cards */}
+          {/* Tarjeta "Caja Abierta" */}
           <div className="col-span-2 lg:col-span-1 card p-4">
             <div className="mb-3 flex items-center gap-2">
               <span className="relative flex size-2">
@@ -389,7 +403,7 @@ export function Caja() {
               </span>
             </div>
             <p className="tabular font-display text-2xl font-bold text-ink-900">
-              {money((caja.total_efectivo ?? 0) + (caja.total_yape ?? 0))}
+              {money(toNum(caja.total_efectivo) + toNum(caja.total_yape))}
             </p>
             <p className="mt-1 text-xs text-ink-400">
               Efectivo + Yape · desde {horaCorta(caja.abierta_en)}
@@ -399,21 +413,21 @@ export function Caja() {
           <KpiCaja
             icon={DollarSign}
             label="Efectivo"
-            valor={money(caja.total_efectivo)}
+            valor={money(toNum(caja.total_efectivo))}
             color="text-accent-700"
             bg="bg-accent-50"
           />
           <KpiCaja
             icon={Smartphone}
             label="Yape"
-            valor={money(caja.total_yape)}
+            valor={money(toNum(caja.total_yape))}
             color="text-blue-700"
             bg="bg-blue-50"
           />
           <KpiCaja
             icon={HandCoins}
             label="Fiado"
-            valor={money(caja.total_fiado)}
+            valor={money(toNum(caja.total_fiado))}
             color="text-amber-700"
             bg="bg-amber-50"
             className="col-span-2 lg:col-span-1"
@@ -438,7 +452,6 @@ export function Caja() {
           <div className="flex items-center justify-between gap-3 border-b border-ink-100 px-4 py-3">
             <h3 className="font-display font-bold text-ink-900">Historial de cajas</h3>
             <div className="flex items-center gap-2">
-              {/* Botón filtros */}
               <Button
                 variant="outline"
                 size="sm"
@@ -452,7 +465,6 @@ export function Caja() {
                   </span>
                 )}
               </Button>
-              {/* Limpiar historial — solo admin, solo si hay cajas cerradas */}
               {esAdmin && cajasParaLimpiar.length > 0 && (
                 <Button
                   variant="outline"
@@ -478,49 +490,58 @@ export function Caja() {
             </div>
           ) : (
             <ul className="divide-y divide-ink-100">
-              {historialFiltrado.map((h: CajaRegistro) => (
-                <li key={h.id} className="flex items-center justify-between px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={cx(
-                        'grid size-8 place-items-center rounded-lg',
-                        h.estado === 'abierta' ? 'bg-accent-100' : 'bg-ink-100',
-                      )}
-                    >
-                      {h.estado === 'abierta' ? (
-                        <LockOpen className="size-4 text-accent-700" />
-                      ) : (
-                        <Lock className="size-4 text-ink-500" />
-                      )}
+              {historialFiltrado.map((h: CajaRegistro) => {
+                // Conversión explícita para evitar suma de strings
+                const hMonto    = toNum(h.monto_inicial)
+                const hEfectivo = toNum(h.total_efectivo)
+                const hYape     = toNum(h.total_yape)
+                const hReal     = toNum(h.monto_real)
+                const esperado  = hMonto + hEfectivo
+
+                return (
+                  <li key={h.id} className="flex items-center justify-between px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={cx(
+                          'grid size-8 place-items-center rounded-lg',
+                          h.estado === 'abierta' ? 'bg-accent-100' : 'bg-ink-100',
+                        )}
+                      >
+                        {h.estado === 'abierta' ? (
+                          <LockOpen className="size-4 text-accent-700" />
+                        ) : (
+                          <Lock className="size-4 text-ink-500" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-ink-900">
+                          {h.cajero_nombre ?? 'Cajero'}
+                        </p>
+                        <p className="text-xs text-ink-400">
+                          {fechaHora(h.abierta_en)}
+                          {h.cerrada_en && ` → ${horaCorta(h.cerrada_en)}`}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold text-ink-900">
-                        {h.cajero_nombre ?? 'Cajero'}
+                    <div className="text-right">
+                      <p className="tabular text-sm font-bold text-ink-900">
+                        {money(hMonto + hEfectivo + hYape)}
                       </p>
-                      <p className="text-xs text-ink-400">
-                        {fechaHora(h.abierta_en)}
-                        {h.cerrada_en && ` → ${horaCorta(h.cerrada_en)}`}
-                      </p>
+                      <div className="mt-0.5">
+                        {h.estado === 'abierta' ? (
+                          <Badge tone="success">Abierta</Badge>
+                        ) : h.monto_real !== null ? (
+                          <Badge tone={hReal >= esperado ? 'success' : 'danger'}>
+                            {hReal >= esperado ? 'Cuadrado' : 'Descuadre'}
+                          </Badge>
+                        ) : (
+                          <Badge tone="info">Cerrada</Badge>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="tabular text-sm font-bold text-ink-900">
-                      {money(h.monto_inicial + h.total_efectivo + h.total_yape)}
-                    </p>
-                    <div className="mt-0.5">
-                      {h.estado === 'abierta' ? (
-                        <Badge tone="success">Abierta</Badge>
-                      ) : h.monto_real !== null ? (
-                        <Badge tone={h.monto_real >= h.monto_inicial + h.total_efectivo ? 'success' : 'danger'}>
-                          {h.monto_real >= h.monto_inicial + h.total_efectivo ? 'Cuadrado' : 'Descuadre'}
-                        </Badge>
-                      ) : (
-                        <Badge tone="info">Cerrada</Badge>
-                      )}
-                    </div>
-                  </div>
-                </li>
-              ))}
+                  </li>
+                )
+              })}
             </ul>
           )}
         </Card>
@@ -611,13 +632,17 @@ export function Caja() {
               </span>
             </div>
             <div className="rounded-xl bg-ink-50 p-4 text-sm space-y-1.5">
-              <InfoRow k="Fondo inicial" v={money(caja.monto_inicial)} />
-              <InfoRow k="Ventas efectivo" v={money(caja.total_efectivo)} />
+              <InfoRow k="Fondo inicial"    v={money(toNum(caja.monto_inicial))} />
+              <InfoRow k="Ventas efectivo"  v={money(toNum(caja.total_efectivo))} />
               <div className="border-t border-ink-200 pt-1.5">
-                <InfoRow k="Efectivo esperado" v={money(caja.monto_inicial + caja.total_efectivo)} bold />
+                <InfoRow
+                  k="Efectivo esperado"
+                  v={money(toNum(caja.monto_inicial) + toNum(caja.total_efectivo))}
+                  bold
+                />
               </div>
-              <InfoRow k="Ventas Yape" v={money(caja.total_yape)} />
-              <InfoRow k="Ventas Fiado" v={money(caja.total_fiado)} />
+              <InfoRow k="Ventas Yape"  v={money(toNum(caja.total_yape))} />
+              <InfoRow k="Ventas Fiado" v={money(toNum(caja.total_fiado))} />
             </div>
             <label className="block">
               <span className="label mb-1.5 block">¿Cuánto efectivo hay en caja? (S/)</span>
@@ -634,7 +659,7 @@ export function Caja() {
             </label>
             {montoReal !== '' && !isNaN(parseFloat(montoReal)) && (
               <DifCard
-                esperado={caja.monto_inicial + caja.total_efectivo}
+                esperado={toNum(caja.monto_inicial) + toNum(caja.total_efectivo)}
                 real={parseFloat(montoReal)}
               />
             )}
@@ -675,14 +700,14 @@ export function Caja() {
               <p className="text-xs text-ink-400 mt-0.5">El reporte PDF fue generado y enviado al navegador</p>
             </div>
             <div className="rounded-xl bg-ink-50 p-4 text-sm space-y-1.5">
-              <InfoRow k="Fondo inicial" v={money(resumen.monto_inicial)} />
-              <InfoRow k="Ventas efectivo" v={money(resumen.total_efectivo)} />
+              <InfoRow k="Fondo inicial"      v={money(resumen.monto_inicial)} />
+              <InfoRow k="Ventas efectivo"    v={money(resumen.total_efectivo)} />
               <div className="border-t border-ink-200 pt-1.5">
                 <InfoRow k="Efectivo esperado" v={money(resumen.esperado_efectivo)} bold />
               </div>
               <InfoRow k="Efectivo contado" v={money(resumen.ingresado_real)} bold />
-              <InfoRow k="Ventas Yape" v={money(resumen.total_yape)} />
-              <InfoRow k="Ventas Fiado" v={money(resumen.total_fiado)} />
+              <InfoRow k="Ventas Yape"      v={money(resumen.total_yape)} />
+              <InfoRow k="Ventas Fiado"     v={money(resumen.total_fiado)} />
             </div>
             <DifCard esperado={resumen.esperado_efectivo} real={resumen.ingresado_real} />
             {resumen.diferencia !== 0 && (
@@ -750,10 +775,10 @@ export function Caja() {
           </div>
           <div className="flex flex-wrap gap-1.5">
             {[
-              { l: 'Hoy', d: 0 },
-              { l: 'Ayer', d: 1 },
+              { l: 'Hoy',         d: 0 },
+              { l: 'Ayer',        d: 1 },
               { l: 'Últ. 7 días', d: 7 },
-              { l: 'Últ. 30 días', d: 30 },
+              { l: 'Últ. 30 días',d: 30 },
             ].map((r) => (
               <button
                 key={r.l}
@@ -859,7 +884,7 @@ function InfoRow({ k, v, bold }: { k: string; v: string; bold?: boolean }) {
 
 function DifCard({ esperado, real }: { esperado: number; real: number }) {
   const diff = real - esperado
-  const ok = Math.abs(diff) < 0.01
+  const ok   = Math.abs(diff) < 0.01
   return (
     <div className={cx(
       'flex items-center justify-between rounded-xl px-4 py-3',
