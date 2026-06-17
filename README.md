@@ -1,4 +1,4 @@
-# Bodega Cesar Ruiz — Sistema de Gestion Comercial y POS
+# BODEGUITA JULI — Sistema de Gestion Comercial y POS
 
 Sistema de punto de venta y gestion en tiempo real para bodega/minimarket, construido con **React + TypeScript + Tailwind** en el frontend y **Supabase** (PostgreSQL, Auth, Realtime) en el backend. Funciona como **PWA** instalable en celular y escritorio.
 
