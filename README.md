@@ -103,4 +103,4 @@ El lector de codigo de barras USB funciona como un teclado: basta con enfocar la
 
 ---
 
-Desarrollado para Bodega Cesar Ruiz · Lima, Peru.
+Desarrollado para Bodeguita juli · Lima, Peru.
